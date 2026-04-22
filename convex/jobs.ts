@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 export const create = mutation({
   args: {
@@ -25,5 +25,24 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("jobs", args);
+  },
+});
+
+export const listByEntityIds = query({
+  args: {
+    entityIds: v.array(v.id("books")),
+  },
+  handler: async (ctx, args) => {
+    const jobs = await Promise.all(
+      args.entityIds.map((entityId) =>
+        ctx.db
+          .query("jobs")
+          .withIndex("by_entityId", (q) => q.eq("entityId", entityId))
+          .order("desc")
+          .collect(),
+      ),
+    );
+
+    return jobs.flat();
   },
 });

@@ -1,5 +1,15 @@
 import { ConvexHttpClient } from "convex/browser";
-import type { BookUploadInput, DiscoverCharactersKickoff, SourceFileType } from "@libra/shared";
+import {
+  buildBookStateSummaries,
+  type BookStateInput,
+  type BookStateSummary,
+  type BookUploadInput,
+  type DiscoverCharactersKickoff,
+  type SourceFileType,
+  type WorkflowJobStateInput,
+} from "@libra/shared";
+import { api } from "../../../../../convex/_generated/api";
+import type { Id } from "../../../../../convex/_generated/dataModel";
 
 export type PersistPreparedUploadInput = {
   bookId: string;
@@ -18,14 +28,7 @@ export type PersistPreparedUploadResult =
 export type ListBooksResult =
   | {
       mode: "convex";
-      books: Array<{
-        _id: string;
-        title: string;
-        author: string;
-        status: string;
-        sourceFileType: string;
-        characterCount: number;
-      }>;
+      books: BookStateSummary[];
     }
   | { mode: "deferred"; reason: string; books: [] };
 
@@ -38,16 +41,6 @@ function getConvexClient() {
   });
 }
 
-function getMutationClient() {
-  const client = getConvexClient();
-  if (!client) return null;
-
-  return client as unknown as {
-    mutation: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-    query: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-  };
-}
-
 export async function persistPreparedUpload(
   input: PersistPreparedUploadInput,
 ): Promise<PersistPreparedUploadResult> {
@@ -58,7 +51,7 @@ export async function persistPreparedUpload(
     sourceFileKey: input.objectKey,
   } satisfies DiscoverCharactersKickoff;
 
-  const client = getMutationClient();
+  const client = getConvexClient();
   if (!client) {
     return {
       mode: "deferred",
@@ -67,7 +60,7 @@ export async function persistPreparedUpload(
     };
   }
 
-  const bookId = await client.mutation("books:create", {
+  const bookId = await client.mutation(api.books.create, {
     userId,
     title: input.title,
     author: input.author ?? "Unknown",
@@ -80,7 +73,7 @@ export async function persistPreparedUpload(
     characterCount: 0,
   });
 
-  const jobId = await client.mutation("jobs:create", {
+  const jobId = await client.mutation(api.jobs.create, {
     entityType: "book",
     entityId: bookId,
     jobType: "discover_characters",
@@ -98,7 +91,7 @@ export async function persistPreparedUpload(
 }
 
 export async function listBooksByUser(userId: string): Promise<ListBooksResult> {
-  const client = getMutationClient();
+  const client = getConvexClient();
   if (!client) {
     return {
       mode: "deferred",
@@ -107,17 +100,28 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
     };
   }
 
-  const books = (await client.query("books:listByUser", { userId })) as Array<{
-    _id: string;
-    title: string;
-    author: string;
-    status: string;
-    sourceFileType: string;
-    characterCount: number;
-  }>;
+  const books = await client.query(api.books.listByUser, { userId });
+
+  const jobs = books.length
+    ? await client.query(api.jobs.listByEntityIds, {
+        entityIds: books.map((book) => book._id as Id<"books">),
+      })
+    : [];
 
   return {
     mode: "convex",
-    books,
+    books: buildBookStateSummaries({
+      books: books as BookStateInput[],
+      jobs: jobs.map((job) => ({
+        _id: String(job._id),
+        _creationTime: job._creationTime,
+        entityId: String(job.entityId),
+        jobType: job.jobType,
+        status: job.status,
+        step: job.step,
+        progressCurrent: job.progressCurrent,
+        progressTotal: job.progressTotal,
+      })) as WorkflowJobStateInput[],
+    }),
   };
 }

@@ -1,19 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type BookRecord = {
-  _id: string;
-  title: string;
-  author: string;
-  status: string;
-  sourceFileType: string;
-  characterCount: number;
-};
+import type { BookStateSummary } from "@libra/shared";
 
 type BooksResponse =
-  | { ok: true; data: { mode: "convex"; books: BookRecord[] } | { mode: "deferred"; reason: string; books: [] } }
+  | { ok: true; data: { mode: "convex"; books: BookStateSummary[] } | { mode: "deferred"; reason: string; books: [] } }
   | { ok: false; error: string };
+
+function formatStep(step: string) {
+  return step.replace(/_/g, " ");
+}
 
 export function BooksList() {
   const [state, setState] = useState<
@@ -55,7 +51,7 @@ export function BooksList() {
         <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Books state</p>
         <h2 className="text-2xl font-semibold text-white">Current book records</h2>
         <p className="text-sm leading-7 text-zinc-300">
-          This is the next step in the slice: render persisted book state when Convex is available, otherwise stay explicit about deferred mode.
+          The slice now surfaces both persisted books and the latest workflow job driving discovery.
         </p>
       </div>
 
@@ -72,14 +68,49 @@ export function BooksList() {
           state.payload.data.books.length > 0 ? (
             <ul className="space-y-3">
               {state.payload.data.books.map((book) => (
-                <li key={book._id} className="rounded-2xl border border-zinc-800 px-4 py-3 text-zinc-200">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
+                <li key={book.id} className="rounded-2xl border border-zinc-800 px-4 py-3 text-zinc-200">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
                       <p className="font-medium text-white">{book.title}</p>
-                      <p className="text-xs text-zinc-400">{book.author} · {book.sourceFileType}</p>
+                      <p className="text-xs text-zinc-400">
+                        {book.author} · {book.sourceFileType} · {book.characterCount} characters
+                      </p>
                     </div>
-                    <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs text-zinc-300">{book.status}</span>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="rounded-full bg-zinc-800 px-3 py-1 text-zinc-300">book: {book.status}</span>
+                      {book.currentJob ? (
+                        <span className="rounded-full bg-indigo-950 px-3 py-1 text-indigo-200">
+                          job: {book.currentJob.status}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
+
+                  {book.currentJob ? (
+                    <div className="mt-4 space-y-2 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+                        <span>{book.currentJob.jobType}</span>
+                        <span>
+                          {book.currentJob.progressCurrent}/{book.currentJob.progressTotal || 0}
+                        </span>
+                      </div>
+                      <p className="text-sm text-zinc-200">{formatStep(book.currentJob.step)}</p>
+                      <div className="h-2 rounded-full bg-zinc-800">
+                        <div
+                          className="h-2 rounded-full bg-indigo-400 transition-all"
+                          style={{
+                            width: `${
+                              book.currentJob.progressTotal > 0
+                                ? Math.min(100, (book.currentJob.progressCurrent / book.currentJob.progressTotal) * 100)
+                                : 0
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-xs text-zinc-500">No workflow job has been attached yet.</p>
+                  )}
                 </li>
               ))}
             </ul>
