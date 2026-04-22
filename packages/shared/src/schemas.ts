@@ -68,6 +68,8 @@ export const bookSchema = z.object({
 });
 
 export const bookUploadInputSchema = z.object({
+  title: z.string().trim().min(1),
+  author: z.string().trim().min(1).optional(),
   fileName: z.string().min(1),
   contentType: supportedUploadContentTypeSchema,
   sizeBytes: z.number().int().positive().max(50 * 1024 * 1024),

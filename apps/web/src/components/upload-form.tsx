@@ -20,6 +20,8 @@ type UploadState =
 
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
   const [state, setState] = useState<UploadState>({ status: "idle" });
 
   const fileSummary = useMemo(() => {
@@ -36,6 +38,11 @@ export function UploadForm() {
       return;
     }
 
+    if (!title.trim()) {
+      setState({ status: "error", message: "Give the book a real title." });
+      return;
+    }
+
     setState({ status: "submitting" });
 
     const response = await fetch("/api/uploads/prepare", {
@@ -44,6 +51,8 @@ export function UploadForm() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        title: title.trim(),
+        author: author.trim() || undefined,
         fileName: file.name,
         contentType: file.type || "text/plain",
         sizeBytes: file.size,
@@ -81,11 +90,33 @@ export function UploadForm() {
         <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Upload prep slice</p>
         <h2 className="text-2xl font-semibold text-white">Prepare a source upload</h2>
         <p className="text-sm leading-7 text-zinc-300">
-          This is the first real boundary in the rebuild: validate a book upload and get an R2 signed URL back.
+          This is the first real boundary in the rebuild: collect actual book metadata, validate the upload, and return the storage handoff.
         </p>
       </div>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+        <label className="block">
+          <span className="mb-2 block text-sm text-zinc-300">Book title</span>
+          <input
+            className="block w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-100"
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="A Christmas Carol"
+            type="text"
+            value={title}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-sm text-zinc-300">Author (optional)</span>
+          <input
+            className="block w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-100"
+            onChange={(event) => setAuthor(event.target.value)}
+            placeholder="Charles Dickens"
+            type="text"
+            value={author}
+          />
+        </label>
+
         <label className="block">
           <span className="mb-2 block text-sm text-zinc-300">Book file</span>
           <input
@@ -115,6 +146,8 @@ export function UploadForm() {
         {state.status === "success" ? (
           <div className="space-y-2 text-zinc-200">
             <p className="font-medium text-emerald-300">Upload prepared.</p>
+            <p>title: {title.trim()}</p>
+            <p>author: {author.trim() || "Unknown"}</p>
             <p>bookId: {state.payload.bookId}</p>
             <p>objectKey: {state.payload.objectKey}</p>
             <p>sourceFileType: {state.payload.sourceFileType}</p>

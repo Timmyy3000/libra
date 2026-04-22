@@ -3,14 +3,6 @@ import { NextResponse } from "next/server";
 import { persistPreparedUpload } from "@/lib/server/convex";
 import { prepareBookUpload } from "@/lib/server/r2";
 
-function inferTitle(fileName: string) {
-  const stripped = fileName.replace(/\.[^.]+$/, "");
-  return stripped
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -20,8 +12,9 @@ export async function POST(request: Request) {
       bookId: preparedUpload.bookId,
       objectKey: preparedUpload.objectKey,
       sourceFileType: preparedUpload.sourceFileType,
-      title: inferTitle(input.fileName),
+      title: input.title,
       uploadInput: input,
+      ...(input.author ? { author: input.author } : {}),
     });
 
     return NextResponse.json({

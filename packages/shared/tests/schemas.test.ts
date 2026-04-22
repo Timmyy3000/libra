@@ -47,19 +47,35 @@ describe("workflowJobSchema", () => {
 });
 
 describe("bookUploadInputSchema", () => {
-  it("accepts supported upload metadata", () => {
+  it("accepts supported upload metadata with an explicit title", () => {
     const parsed = bookUploadInputSchema.parse({
+      title: "A Christmas Carol",
+      author: "Charles Dickens",
       fileName: "christmas-carol.epub",
       contentType: "application/epub+zip",
       sizeBytes: 2048,
     });
 
-    expect(parsed.fileName).toBe("christmas-carol.epub");
+    expect(parsed.title).toBe("A Christmas Carol");
+    expect(parsed.author).toBe("Charles Dickens");
+  });
+
+  it("accepts missing author but still requires a title", () => {
+    const parsed = bookUploadInputSchema.parse({
+      title: "Dracula",
+      fileName: "dracula.pdf",
+      contentType: "application/pdf",
+      sizeBytes: 2048,
+    });
+
+    expect(parsed.title).toBe("Dracula");
+    expect(parsed.author).toBeUndefined();
   });
 
   it("rejects unsupported file types", () => {
     expect(() =>
       bookUploadInputSchema.parse({
+        title: "Totally Fine",
         fileName: "malware.exe",
         contentType: "text/plain",
         sizeBytes: 2048,
