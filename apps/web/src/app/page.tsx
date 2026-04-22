@@ -1,4 +1,5 @@
 import { bookSchema } from "@libra/shared";
+import { BooksList } from "@/components/books-list";
 import { UploadForm } from "@/components/upload-form";
 
 const productStates = [
@@ -93,6 +94,10 @@ export default function Home() {
 
       <section>
         <UploadForm />
+      </section>
+
+      <section>
+        <BooksList />
       </section>
     </main>
   );

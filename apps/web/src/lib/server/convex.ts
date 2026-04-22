@@ -15,6 +15,20 @@ export type PersistPreparedUploadResult =
   | { mode: "convex"; bookId: string; jobId: string }
   | { mode: "deferred"; reason: string; kickoff: DiscoverCharactersKickoff };
 
+export type ListBooksResult =
+  | {
+      mode: "convex";
+      books: Array<{
+        _id: string;
+        title: string;
+        author: string;
+        status: string;
+        sourceFileType: string;
+        characterCount: number;
+      }>;
+    }
+  | { mode: "deferred"; reason: string; books: [] };
+
 function getConvexClient() {
   const deploymentUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!deploymentUrl) return null;
@@ -22,6 +36,16 @@ function getConvexClient() {
     skipConvexDeploymentUrlCheck: true,
     logger: false,
   });
+}
+
+function getMutationClient() {
+  const client = getConvexClient();
+  if (!client) return null;
+
+  return client as unknown as {
+    mutation: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+    query: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  };
 }
 
 export async function persistPreparedUpload(
@@ -34,7 +58,7 @@ export async function persistPreparedUpload(
     sourceFileKey: input.objectKey,
   } satisfies DiscoverCharactersKickoff;
 
-  const client = getConvexClient();
+  const client = getMutationClient();
   if (!client) {
     return {
       mode: "deferred",
@@ -43,11 +67,7 @@ export async function persistPreparedUpload(
     };
   }
 
-  const mutationClient = client as unknown as {
-    mutation: (name: string, args: Record<string, unknown>) => Promise<unknown>;
-  };
-
-  const bookId = await mutationClient.mutation("books:create", {
+  const bookId = await client.mutation("books:create", {
     userId,
     title: input.title,
     author: input.author ?? "Unknown",
@@ -60,7 +80,7 @@ export async function persistPreparedUpload(
     characterCount: 0,
   });
 
-  const jobId = await mutationClient.mutation("jobs:create", {
+  const jobId = await client.mutation("jobs:create", {
     entityType: "book",
     entityId: bookId,
     jobType: "discover_characters",
@@ -74,5 +94,30 @@ export async function persistPreparedUpload(
     mode: "convex",
     bookId: String(bookId),
     jobId: String(jobId),
+  };
+}
+
+export async function listBooksByUser(userId: string): Promise<ListBooksResult> {
+  const client = getMutationClient();
+  if (!client) {
+    return {
+      mode: "deferred",
+      reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to read persisted books.",
+      books: [],
+    };
+  }
+
+  const books = (await client.query("books:listByUser", { userId })) as Array<{
+    _id: string;
+    title: string;
+    author: string;
+    status: string;
+    sourceFileType: string;
+    characterCount: number;
+  }>;
+
+  return {
+    mode: "convex",
+    books,
   };
 }
