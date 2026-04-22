@@ -5,7 +5,17 @@ import { useMemo, useState } from "react";
 type UploadState =
   | { status: "idle" }
   | { status: "submitting" }
-  | { status: "success"; payload: { bookId: string; objectKey: string; sourceFileType: string } }
+  | {
+      status: "success";
+      payload: {
+        bookId: string;
+        objectKey: string;
+        sourceFileType: string;
+        persistence:
+          | { mode: "convex"; bookId: string; jobId: string }
+          | { mode: "deferred"; reason: string; kickoff: { bookId: string; userId: string; sourceFileKey: string } };
+      };
+    }
   | { status: "error"; message: string };
 
 export function UploadForm() {
@@ -41,7 +51,17 @@ export function UploadForm() {
     });
 
     const payload = (await response.json()) as
-      | { ok: true; data: { bookId: string; objectKey: string; sourceFileType: string } }
+      | {
+          ok: true;
+          data: {
+            bookId: string;
+            objectKey: string;
+            sourceFileType: string;
+            persistence:
+              | { mode: "convex"; bookId: string; jobId: string }
+              | { mode: "deferred"; reason: string; kickoff: { bookId: string; userId: string; sourceFileKey: string } };
+          };
+        }
       | { ok: false; error: string };
 
     if (!response.ok || !payload.ok) {
@@ -98,6 +118,19 @@ export function UploadForm() {
             <p>bookId: {state.payload.bookId}</p>
             <p>objectKey: {state.payload.objectKey}</p>
             <p>sourceFileType: {state.payload.sourceFileType}</p>
+            {state.payload.persistence.mode === "convex" ? (
+              <>
+                <p className="text-emerald-300">Book + job persisted through Convex.</p>
+                <p>persistedBookId: {state.payload.persistence.bookId}</p>
+                <p>jobId: {state.payload.persistence.jobId}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-amber-300">Persistence deferred.</p>
+                <p>{state.payload.persistence.reason}</p>
+                <p>kickoff.bookId: {state.payload.persistence.kickoff.bookId}</p>
+              </>
+            )}
           </div>
         ) : null}
       </div>
