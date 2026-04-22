@@ -48,6 +48,7 @@
       "name": "@libra/trigger",
       "version": "0.1.0",
       "dependencies": {
+        "@aws-sdk/client-s3": "^3.1034.0",
         "@libra/shared": "workspace:*",
         "@trigger.dev/sdk": "^4.4.4",
         "convex": "^1.36.0",

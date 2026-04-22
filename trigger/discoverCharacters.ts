@@ -3,10 +3,12 @@ import type { Id } from "../convex/_generated/dataModel";
 import { api } from "../convex/_generated/api";
 import {
   buildDiscoveryLifecycleUpdate,
+  deriveCharactersFromText,
   discoverCharactersKickoffSchema,
   type DiscoverCharactersKickoff,
 } from "@libra/shared";
 import { task } from "@trigger.dev/sdk/v3";
+import { readTextSourceFromR2 } from "./r2";
 
 export const discoverCharactersWorkflowId = "discover-characters";
 
@@ -47,12 +49,20 @@ export const discoverCharactersTask = task({
     });
 
     try {
-      const discoveredCharacters: Array<{
-        name: string;
-        description: string;
-        aliases: string[];
-        sampleLineCount: number;
-      }> = [];
+      const sourceText = await readTextSourceFromR2(payload.sourceFileKey);
+
+      await client.mutation(api.discovery.applyLifecycle, {
+        bookId: payload.bookId as Id<"books">,
+        jobId: payload.jobId as Id<"jobs">,
+        bookStatus: "discovering_characters",
+        jobStatus: "running",
+        step: "identifying_characters",
+        progressCurrent: 2,
+        progressTotal: 3,
+        triggerRunId: ctx.run.id,
+      });
+
+      const discoveredCharacters = deriveCharactersFromText(sourceText);
       const characterCount = discoveredCharacters.length;
 
       await client.mutation(api.discovery.saveCharacters, {
