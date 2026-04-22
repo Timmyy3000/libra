@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bookSchema,
   bookUploadInputSchema,
+  discoverCharactersKickoffSchema,
   storageObjectSchema,
   workflowJobSchema,
 } from "../src/schemas";
@@ -64,6 +65,18 @@ describe("bookUploadInputSchema", () => {
         sizeBytes: 2048,
       }),
     ).toThrowError(/supported/i);
+  });
+});
+
+describe("discoverCharactersKickoffSchema", () => {
+  it("requires the minimum trigger handoff payload", () => {
+    const parsed = discoverCharactersKickoffSchema.parse({
+      bookId: "book_123",
+      userId: "user_123",
+      sourceFileKey: "books/book_123/source/christmas-carol.epub",
+    });
+
+    expect(parsed.bookId).toBe("book_123");
   });
 });
 

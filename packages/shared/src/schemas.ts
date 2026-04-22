@@ -40,6 +40,12 @@ export const workflowJobStatusSchema = z.enum([
   "failed",
 ]);
 
+export const discoverCharactersKickoffSchema = z.object({
+  bookId: z.string().min(1),
+  userId: z.string().min(1),
+  sourceFileKey: z.string().min(1),
+});
+
 export const storageObjectSchema = z.object({
   key: z.string().min(1),
   bucket: z.string().min(1),
@@ -109,6 +115,7 @@ export type BookStatus = z.infer<typeof bookStatusSchema>;
 export type AuraStatus = z.infer<typeof auraStatusSchema>;
 export type ScriptLineStatus = z.infer<typeof scriptLineStatusSchema>;
 export type WorkflowJobStatus = z.infer<typeof workflowJobStatusSchema>;
+export type DiscoverCharactersKickoff = z.infer<typeof discoverCharactersKickoffSchema>;
 export type StorageObject = z.infer<typeof storageObjectSchema>;
 export type BookUploadInput = z.infer<typeof bookUploadInputSchema>;
 export type Book = z.infer<typeof bookSchema>;
