@@ -1,4 +1,5 @@
 import { bookSchema } from "@libra/shared";
+import { UploadForm } from "@/components/upload-form";
 
 const productStates = [
   "Upload a book",
@@ -10,9 +11,16 @@ const productStates = [
 
 const exampleBook = bookSchema.parse({
   id: "sample",
+  userId: "demo-user",
   title: "A Christmas Carol",
   author: "Charles Dickens",
   sourceFileType: "epub",
+  sourceFile: {
+    key: "books/sample/source/a-christmas-carol.epub",
+    bucket: "libra-demo",
+    contentType: "application/epub+zip",
+    sizeBytes: 1024,
+  },
   status: "uploaded",
   characterCount: 0,
 });
@@ -81,6 +89,10 @@ export default function Home() {
             Personal tool first. Hosted demos later. If someone wants to self-host Libra, the repo should make that realistic.
           </p>
         </article>
+      </section>
+
+      <section>
+        <UploadForm />
       </section>
     </main>
   );
