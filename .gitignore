@@ -10,3 +10,4 @@ coverage/
 .vercel/
 convex/_generated/
 trigger/.cache/
+scratchpad/
