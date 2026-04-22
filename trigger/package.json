@@ -1,0 +1,20 @@
+{
+  "name": "@libra/trigger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@libra/shared": "workspace:*",
+    "@trigger.dev/sdk": "^4.4.4",
+    "convex": "^1.36.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "typescript": "^5.9.3"
+  }
+}

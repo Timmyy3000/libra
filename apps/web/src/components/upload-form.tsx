@@ -12,8 +12,19 @@ type UploadState =
         objectKey: string;
         sourceFileType: string;
         persistence:
-          | { mode: "convex"; bookId: string; jobId: string }
-          | { mode: "deferred"; reason: string; kickoff: { bookId: string; userId: string; sourceFileKey: string } };
+          | {
+              mode: "convex";
+              bookId: string;
+              jobId: string;
+              discovery:
+                | { mode: "trigger"; runId: string }
+                | { mode: "deferred"; reason: string };
+            }
+          | {
+              mode: "deferred";
+              reason: string;
+              kickoff: { bookId: string; jobId: string; userId: string; sourceFileKey: string };
+            };
       };
     }
   | { status: "error"; message: string };
@@ -67,8 +78,19 @@ export function UploadForm() {
             objectKey: string;
             sourceFileType: string;
             persistence:
-              | { mode: "convex"; bookId: string; jobId: string }
-              | { mode: "deferred"; reason: string; kickoff: { bookId: string; userId: string; sourceFileKey: string } };
+              | {
+                  mode: "convex";
+                  bookId: string;
+                  jobId: string;
+                  discovery:
+                    | { mode: "trigger"; runId: string }
+                    | { mode: "deferred"; reason: string };
+                }
+              | {
+                  mode: "deferred";
+                  reason: string;
+                  kickoff: { bookId: string; jobId: string; userId: string; sourceFileKey: string };
+                };
           };
         }
       | { ok: false; error: string };
@@ -90,7 +112,7 @@ export function UploadForm() {
         <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Upload prep slice</p>
         <h2 className="text-2xl font-semibold text-white">Prepare a source upload</h2>
         <p className="text-sm leading-7 text-zinc-300">
-          This is the first real boundary in the rebuild: collect actual book metadata, validate the upload, and return the storage handoff.
+          This is the first real boundary in the rebuild: collect actual book metadata, validate the upload, persist state, and hand discovery to the workflow runner when configured.
         </p>
       </div>
 
@@ -139,9 +161,7 @@ export function UploadForm() {
       </form>
 
       <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
-        {state.status === "idle" ? (
-          <p className="text-zinc-400">No upload prepared yet.</p>
-        ) : null}
+        {state.status === "idle" ? <p className="text-zinc-400">No upload prepared yet.</p> : null}
         {state.status === "error" ? <p className="text-red-300">{state.message}</p> : null}
         {state.status === "success" ? (
           <div className="space-y-2 text-zinc-200">
@@ -156,12 +176,24 @@ export function UploadForm() {
                 <p className="text-emerald-300">Book + job persisted through Convex.</p>
                 <p>persistedBookId: {state.payload.persistence.bookId}</p>
                 <p>jobId: {state.payload.persistence.jobId}</p>
+                {state.payload.persistence.discovery.mode === "trigger" ? (
+                  <>
+                    <p className="text-emerald-300">Discovery workflow triggered.</p>
+                    <p>triggerRunId: {state.payload.persistence.discovery.runId}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-amber-300">Discovery workflow deferred.</p>
+                    <p>{state.payload.persistence.discovery.reason}</p>
+                  </>
+                )}
               </>
             ) : (
               <>
                 <p className="text-amber-300">Persistence deferred.</p>
                 <p>{state.payload.persistence.reason}</p>
                 <p>kickoff.bookId: {state.payload.persistence.kickoff.bookId}</p>
+                <p>kickoff.jobId: {state.payload.persistence.kickoff.jobId}</p>
               </>
             )}
           </div>

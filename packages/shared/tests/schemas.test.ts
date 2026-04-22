@@ -85,14 +85,15 @@ describe("bookUploadInputSchema", () => {
 });
 
 describe("discoverCharactersKickoffSchema", () => {
-  it("requires the minimum trigger handoff payload", () => {
+  it("requires the minimum trigger handoff payload including the queued job id", () => {
     const parsed = discoverCharactersKickoffSchema.parse({
       bookId: "book_123",
+      jobId: "job_123",
       userId: "user_123",
       sourceFileKey: "books/book_123/source/christmas-carol.epub",
     });
 
-    expect(parsed.bookId).toBe("book_123");
+    expect(parsed.jobId).toBe("job_123");
   });
 });
 

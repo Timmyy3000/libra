@@ -42,6 +42,7 @@ export const workflowJobStatusSchema = z.enum([
 
 export const discoverCharactersKickoffSchema = z.object({
   bookId: z.string().min(1),
+  jobId: z.string().min(1),
   userId: z.string().min(1),
   sourceFileKey: z.string().min(1),
 });

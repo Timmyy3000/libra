@@ -8,6 +8,8 @@ import {
   type SourceFileType,
   type WorkflowJobStateInput,
 } from "@libra/shared";
+import { createDiscoverCharactersPayload, discoverCharactersWorkflowId } from "@libra/trigger";
+import { configure, tasks } from "@trigger.dev/sdk/v3";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -22,8 +24,12 @@ export type PersistPreparedUploadInput = {
 };
 
 export type PersistPreparedUploadResult =
-  | { mode: "convex"; bookId: string; jobId: string }
+  | { mode: "convex"; bookId: string; jobId: string; discovery: DiscoveryKickoffResult }
   | { mode: "deferred"; reason: string; kickoff: DiscoverCharactersKickoff };
+
+export type DiscoveryKickoffResult =
+  | { mode: "trigger"; runId: string }
+  | { mode: "deferred"; reason: string };
 
 export type ListBooksResult =
   | {
@@ -41,22 +47,57 @@ function getConvexClient() {
   });
 }
 
+function getTriggerConfig() {
+  const accessToken = process.env.TRIGGER_SECRET_KEY;
+  if (!accessToken) return null;
+
+  return {
+    accessToken,
+    baseURL: process.env.TRIGGER_API_URL,
+  } as const;
+}
+
+async function kickoffDiscoveryWorkflow(kickoff: DiscoverCharactersKickoff): Promise<DiscoveryKickoffResult> {
+  const triggerConfig = getTriggerConfig();
+  if (!triggerConfig) {
+    return {
+      mode: "deferred",
+      reason: "Set TRIGGER_SECRET_KEY to kick off the real discovery workflow.",
+    };
+  }
+
+  configure({
+    accessToken: triggerConfig.accessToken,
+    ...(triggerConfig.baseURL ? { baseURL: triggerConfig.baseURL } : {}),
+  });
+
+  const handle = await tasks.trigger(discoverCharactersWorkflowId, createDiscoverCharactersPayload(kickoff), {
+    idempotencyKey: `discover-characters:${kickoff.jobId}`,
+    tags: [`book:${kickoff.bookId}`, `job:${kickoff.jobId}`],
+  });
+
+  return {
+    mode: "trigger",
+    runId: handle.id,
+  };
+}
+
 export async function persistPreparedUpload(
   input: PersistPreparedUploadInput,
 ): Promise<PersistPreparedUploadResult> {
   const userId = input.userId ?? "demo-user";
-  const kickoff = {
-    bookId: input.bookId,
-    userId,
-    sourceFileKey: input.objectKey,
-  } satisfies DiscoverCharactersKickoff;
 
   const client = getConvexClient();
   if (!client) {
     return {
       mode: "deferred",
       reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to persist book/job state.",
-      kickoff,
+      kickoff: {
+        bookId: input.bookId,
+        jobId: "pending-job-id",
+        userId,
+        sourceFileKey: input.objectKey,
+      },
     };
   }
 
@@ -83,10 +124,28 @@ export async function persistPreparedUpload(
     step: "queued_for_discovery",
   });
 
+  const kickoff = {
+    bookId: String(bookId),
+    jobId: String(jobId),
+    userId,
+    sourceFileKey: input.objectKey,
+  } satisfies DiscoverCharactersKickoff;
+
+  const discovery = await kickoffDiscoveryWorkflow(kickoff);
+
+  if (discovery.mode === "trigger") {
+    await client.mutation(api.discovery.markTriggered, {
+      bookId: bookId as Id<"books">,
+      jobId: jobId as Id<"jobs">,
+      triggerRunId: discovery.runId,
+    });
+  }
+
   return {
     mode: "convex",
     bookId: String(bookId),
     jobId: String(jobId),
+    discovery,
   };
 }
 
