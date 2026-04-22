@@ -30,10 +30,10 @@ A hosted landing page and demo generations may exist, and SaaS can come later if
 ## Workspace
 
 ```bash
-pnpm install
-pnpm dev
-pnpm test
-pnpm build
+bun install
+bun run dev
+bun run test
+bun run build
 ```
 
 ## Repository layout

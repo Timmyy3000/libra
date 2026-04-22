@@ -32,8 +32,8 @@ Do not commit scratchpad contents unless there is an explicit reason to publish 
 ## Local setup
 
 ```bash
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 ## Quality checks
@@ -41,9 +41,9 @@ pnpm dev
 Run these before opening a PR:
 
 ```bash
-pnpm lint
-pnpm test
-pnpm build
+bun run lint
+bun run test
+bun run build
 ```
 
 ## Commit style
