@@ -92,6 +92,8 @@ export const characterSchema = z.object({
   bookId: z.string().min(1),
   name: z.string().min(1),
   description: z.string().default(""),
+  aliases: z.array(z.string().min(1)).default([]),
+  sampleLineCount: z.number().int().nonnegative().default(0),
   assignedVoiceId: z.string().min(1).optional(),
 });
 

@@ -47,7 +47,18 @@ export const discoverCharactersTask = task({
     });
 
     try {
-      const characterCount = 0;
+      const discoveredCharacters: Array<{
+        name: string;
+        description: string;
+        aliases: string[];
+        sampleLineCount: number;
+      }> = [];
+      const characterCount = discoveredCharacters.length;
+
+      await client.mutation(api.discovery.saveCharacters, {
+        bookId: payload.bookId as Id<"books">,
+        characters: discoveredCharacters,
+      });
 
       await client.mutation(api.discovery.applyLifecycle, {
         bookId: payload.bookId as Id<"books">,
@@ -63,6 +74,7 @@ export const discoverCharactersTask = task({
         bookId: payload.bookId,
         jobId: payload.jobId,
         characterCount,
+        characters: discoveredCharacters,
         status: "completed" as const,
       };
     } catch (error) {

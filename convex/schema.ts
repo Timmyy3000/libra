@@ -23,6 +23,15 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_status", ["status"]),
 
+  characters: defineTable({
+    bookId: v.id("books"),
+    name: v.string(),
+    description: v.string(),
+    aliases: v.array(v.string()),
+    sampleLineCount: v.number(),
+    assignedVoiceId: v.optional(v.string()),
+  }).index("by_bookId", ["bookId"]),
+
   jobs: defineTable({
     entityType: v.union(v.literal("book"), v.literal("aura")),
     entityId: v.id("books"),

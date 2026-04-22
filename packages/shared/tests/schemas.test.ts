@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   bookSchema,
   bookUploadInputSchema,
+  characterSchema,
   discoverCharactersKickoffSchema,
   storageObjectSchema,
   workflowJobSchema,
@@ -94,6 +95,22 @@ describe("discoverCharactersKickoffSchema", () => {
     });
 
     expect(parsed.jobId).toBe("job_123");
+  });
+});
+
+describe("characterSchema", () => {
+  it("captures a discovered character record", () => {
+    const parsed = characterSchema.parse({
+      id: "char_123",
+      bookId: "book_123",
+      name: "Ebenezer Scrooge",
+      description: "A bitter miser",
+      aliases: ["Scrooge"],
+      sampleLineCount: 22,
+    });
+
+    expect(parsed.aliases).toEqual(["Scrooge"]);
+    expect(parsed.sampleLineCount).toBe(22);
   });
 });
 

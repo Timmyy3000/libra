@@ -1,4 +1,4 @@
-import type { BookStatus, SourceFileType, WorkflowJobStatus } from "./schemas";
+import type { BookStatus, Character, SourceFileType, WorkflowJobStatus } from "./schemas";
 
 export type BookStateInput = {
   _id: string;
@@ -21,6 +21,15 @@ export type WorkflowJobStateInput = {
   progressTotal: number;
 };
 
+export type CharacterStateInput = {
+  _id: string;
+  bookId: string;
+  name: string;
+  description: string;
+  aliases: string[];
+  sampleLineCount: number;
+};
+
 export type BookStateSummary = {
   id: string;
   title: string;
@@ -28,6 +37,7 @@ export type BookStateSummary = {
   status: BookStatus;
   sourceFileType: SourceFileType;
   characterCount: number;
+  characters: Array<Pick<Character, "id" | "name" | "description" | "aliases" | "sampleLineCount">>;
   currentJob?: {
     id: string;
     jobType: WorkflowJobStateInput["jobType"];
@@ -41,14 +51,28 @@ export type BookStateSummary = {
 export function buildBookStateSummaries(input: {
   books: BookStateInput[];
   jobs: WorkflowJobStateInput[];
+  characters: CharacterStateInput[];
 }): BookStateSummary[] {
   const latestJobsByEntityId = new Map<string, WorkflowJobStateInput>();
+  const charactersByBookId = new Map<string, BookStateSummary["characters"]>();
 
   for (const job of input.jobs) {
     const current = latestJobsByEntityId.get(job.entityId);
     if (!current || current._creationTime < job._creationTime) {
       latestJobsByEntityId.set(job.entityId, job);
     }
+  }
+
+  for (const character of input.characters) {
+    const existing = charactersByBookId.get(character.bookId) ?? [];
+    existing.push({
+      id: character._id,
+      name: character.name,
+      description: character.description,
+      aliases: character.aliases,
+      sampleLineCount: character.sampleLineCount,
+    });
+    charactersByBookId.set(character.bookId, existing);
   }
 
   return input.books.map((book) => {
@@ -61,6 +85,7 @@ export function buildBookStateSummaries(input: {
       status: book.status,
       sourceFileType: book.sourceFileType,
       characterCount: book.characterCount,
+      characters: charactersByBookId.get(book._id) ?? [],
       ...(currentJob
         ? {
             currentJob: {

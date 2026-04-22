@@ -51,7 +51,7 @@ export function BooksList() {
         <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Books state</p>
         <h2 className="text-2xl font-semibold text-white">Current book records</h2>
         <p className="text-sm leading-7 text-zinc-300">
-          The slice now surfaces both persisted books and the latest workflow job driving discovery.
+          The slice now surfaces persisted books, their latest discovery job, and any discovered characters already written back into Convex.
         </p>
       </div>
 
@@ -111,6 +111,37 @@ export function BooksList() {
                   ) : (
                     <p className="mt-4 text-xs text-zinc-500">No workflow job has been attached yet.</p>
                   )}
+
+                  <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-white">Discovered characters</p>
+                      <span className="text-xs text-zinc-400">{book.characters.length}</span>
+                    </div>
+                    {book.characters.length > 0 ? (
+                      <ul className="mt-3 space-y-2">
+                        {book.characters.map((character) => (
+                          <li key={character.id} className="rounded-xl border border-zinc-800 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-zinc-100">{character.name}</p>
+                              <span className="text-xs text-zinc-500">{character.sampleLineCount} lines</span>
+                            </div>
+                            <p className="mt-1 text-xs text-zinc-400">{character.description || "No description yet."}</p>
+                            {character.aliases.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {character.aliases.map((alias) => (
+                                  <span key={alias} className="rounded-full bg-zinc-800 px-2 py-1 text-[11px] text-zinc-300">
+                                    {alias}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-3 text-xs text-zinc-500">No discovered characters have been written yet.</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

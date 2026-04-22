@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildBookStateSummaries } from "../src/book-state";
 
 describe("buildBookStateSummaries", () => {
-  it("attaches the latest workflow job to each book", () => {
+  it("attaches the latest workflow job and discovered characters to each book", () => {
     const summaries = buildBookStateSummaries({
       books: [
         {
@@ -12,7 +12,7 @@ describe("buildBookStateSummaries", () => {
           author: "Charles Dickens",
           status: "uploaded",
           sourceFileType: "epub",
-          characterCount: 0,
+          characterCount: 2,
         },
       ],
       jobs: [
@@ -37,6 +37,24 @@ describe("buildBookStateSummaries", () => {
           progressTotal: 3,
         },
       ],
+      characters: [
+        {
+          _id: "char_1",
+          bookId: "book_1",
+          name: "Ebenezer Scrooge",
+          description: "A cold-hearted miser",
+          aliases: ["Scrooge"],
+          sampleLineCount: 22,
+        },
+        {
+          _id: "char_2",
+          bookId: "book_1",
+          name: "Bob Cratchit",
+          description: "Scrooge's clerk",
+          aliases: [],
+          sampleLineCount: 9,
+        },
+      ],
     });
 
     expect(summaries).toEqual([
@@ -46,7 +64,23 @@ describe("buildBookStateSummaries", () => {
         author: "Charles Dickens",
         status: "uploaded",
         sourceFileType: "epub",
-        characterCount: 0,
+        characterCount: 2,
+        characters: [
+          {
+            id: "char_1",
+            name: "Ebenezer Scrooge",
+            description: "A cold-hearted miser",
+            aliases: ["Scrooge"],
+            sampleLineCount: 22,
+          },
+          {
+            id: "char_2",
+            name: "Bob Cratchit",
+            description: "Scrooge's clerk",
+            aliases: [],
+            sampleLineCount: 9,
+          },
+        ],
         currentJob: {
           id: "job_new",
           jobType: "discover_characters",
@@ -73,6 +107,7 @@ describe("buildBookStateSummaries", () => {
         },
       ],
       jobs: [],
+      characters: [],
     });
 
     expect(summaries).toEqual([
@@ -83,6 +118,7 @@ describe("buildBookStateSummaries", () => {
         status: "characters_ready",
         sourceFileType: "pdf",
         characterCount: 12,
+        characters: [],
       },
     ]);
   });

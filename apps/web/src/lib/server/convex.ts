@@ -4,6 +4,7 @@ import {
   type BookStateInput,
   type BookStateSummary,
   type BookUploadInput,
+  type CharacterStateInput,
   type DiscoverCharactersKickoff,
   type SourceFileType,
   type WorkflowJobStateInput,
@@ -167,6 +168,12 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
       })
     : [];
 
+  const characters = books.length
+    ? await client.query(api.characters.listByBookIds, {
+        bookIds: books.map((book) => book._id as Id<"books">),
+      })
+    : [];
+
   return {
     mode: "convex",
     books: buildBookStateSummaries({
@@ -181,6 +188,14 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
         progressCurrent: job.progressCurrent,
         progressTotal: job.progressTotal,
       })) as WorkflowJobStateInput[],
+      characters: characters.map((character) => ({
+        _id: String(character._id),
+        bookId: String(character.bookId),
+        name: character.name,
+        description: character.description,
+        aliases: character.aliases,
+        sampleLineCount: character.sampleLineCount,
+      })) as CharacterStateInput[],
     }),
   };
 }
