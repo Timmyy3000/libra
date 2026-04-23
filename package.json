@@ -11,7 +11,7 @@
     "dev": "bun run --filter web dev",
     "build": "bun run --filter @libra/shared typecheck && bun run --filter @libra/trigger typecheck && bun run --filter web build",
     "lint": "bun run --filter @libra/shared typecheck && bun run --filter @libra/trigger typecheck && bun run --filter web lint",
-    "test": "bun run --filter @libra/shared test",
+    "test": "bun run --filter @libra/shared test && bun run --filter @libra/trigger test",
     "typecheck": "bun run --filter @libra/shared typecheck && bun run --filter @libra/trigger typecheck && bun run --filter web typecheck"
   },
   "devDependencies": {

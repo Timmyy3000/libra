@@ -6,16 +6,20 @@
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1034.0",
     "@libra/shared": "workspace:*",
     "@trigger.dev/sdk": "^4.4.4",
-    "convex": "^1.36.0"
+    "convex": "^1.36.0",
+    "pdf-parse": "^2.4.5"
   },
   "devDependencies": {
     "@types/node": "^20.19.39",
+    "@types/pdf-parse": "^1.1.5",
+    "pdf-lib": "^1.17.1",
     "typescript": "^5.9.3"
   }
 }
