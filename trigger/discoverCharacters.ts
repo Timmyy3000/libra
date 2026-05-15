@@ -1,6 +1,4 @@
 import { ConvexHttpClient } from "convex/browser";
-import type { Id } from "../convex/_generated/dataModel";
-import { api } from "../convex/_generated/api";
 import {
   buildDiscoveryLifecycleUpdate,
   deriveCharactersFromText,
@@ -13,6 +11,9 @@ import { readTextSourceFromR2 } from "./r2";
 export const discoverCharactersWorkflowId = "discover-characters";
 
 export type DiscoverCharactersWorkflowPayload = DiscoverCharactersKickoff;
+
+const DISCOVERY_APPLY_LIFECYCLE = "discovery:applyLifecycle";
+const DISCOVERY_SAVE_CHARACTERS = "discovery:saveCharacters";
 
 export function createDiscoverCharactersPayload(
   input: DiscoverCharactersWorkflowPayload,
@@ -39,9 +40,9 @@ export const discoverCharactersTask = task({
     const payload = createDiscoverCharactersPayload(rawPayload);
     const client = getConvexClient();
 
-    await client.mutation(api.discovery.applyLifecycle, {
-      bookId: payload.bookId as Id<"books">,
-      jobId: payload.jobId as Id<"jobs">,
+    await client.mutation(DISCOVERY_APPLY_LIFECYCLE as any, {
+      bookId: payload.bookId,
+      jobId: payload.jobId,
       ...buildDiscoveryLifecycleUpdate({
         phase: "started",
         triggerRunId: ctx.run.id,
@@ -51,9 +52,9 @@ export const discoverCharactersTask = task({
     try {
       const sourceText = await readTextSourceFromR2(payload.sourceFileKey);
 
-      await client.mutation(api.discovery.applyLifecycle, {
-        bookId: payload.bookId as Id<"books">,
-        jobId: payload.jobId as Id<"jobs">,
+      await client.mutation(DISCOVERY_APPLY_LIFECYCLE as any, {
+        bookId: payload.bookId,
+        jobId: payload.jobId,
         bookStatus: "discovering_characters",
         jobStatus: "running",
         step: "identifying_characters",
@@ -65,14 +66,14 @@ export const discoverCharactersTask = task({
       const discoveredCharacters = deriveCharactersFromText(sourceText);
       const characterCount = discoveredCharacters.length;
 
-      await client.mutation(api.discovery.saveCharacters, {
-        bookId: payload.bookId as Id<"books">,
+      await client.mutation(DISCOVERY_SAVE_CHARACTERS as any, {
+        bookId: payload.bookId,
         characters: discoveredCharacters,
       });
 
-      await client.mutation(api.discovery.applyLifecycle, {
-        bookId: payload.bookId as Id<"books">,
-        jobId: payload.jobId as Id<"jobs">,
+      await client.mutation(DISCOVERY_APPLY_LIFECYCLE as any, {
+        bookId: payload.bookId,
+        jobId: payload.jobId,
         ...buildDiscoveryLifecycleUpdate({
           phase: "completed",
           triggerRunId: ctx.run.id,
@@ -90,9 +91,9 @@ export const discoverCharactersTask = task({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Discovery workflow failed.";
 
-      await client.mutation(api.discovery.applyLifecycle, {
-        bookId: payload.bookId as Id<"books">,
-        jobId: payload.jobId as Id<"jobs">,
+      await client.mutation(DISCOVERY_APPLY_LIFECYCLE as any, {
+        bookId: payload.bookId,
+        jobId: payload.jobId,
         ...buildDiscoveryLifecycleUpdate({
           phase: "failed",
           triggerRunId: ctx.run.id,
