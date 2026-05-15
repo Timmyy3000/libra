@@ -11,8 +11,6 @@ import {
 } from "@libra/shared";
 import { createDiscoverCharactersPayload, discoverCharactersWorkflowId } from "@libra/trigger";
 import { configure, tasks } from "@trigger.dev/sdk/v3";
-import { api } from "../../../../../convex/_generated/api";
-import type { Id } from "../../../../../convex/_generated/dataModel";
 
 export type PersistPreparedUploadInput = {
   bookId: string;
@@ -38,6 +36,15 @@ export type ListBooksResult =
       books: BookStateSummary[];
     }
   | { mode: "deferred"; reason: string; books: [] };
+
+const FN = {
+  booksCreate: "books:create",
+  booksListByUser: "books:listByUser",
+  jobsCreate: "jobs:create",
+  jobsListByEntityIds: "jobs:listByEntityIds",
+  discoveryMarkTriggered: "discovery:markTriggered",
+  charactersListByBookIds: "characters:listByBookIds",
+} as const;
 
 function getConvexClient() {
   const deploymentUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -102,7 +109,7 @@ export async function persistPreparedUpload(
     };
   }
 
-  const bookId = await client.mutation(api.books.create, {
+  const bookId = await client.mutation(FN.booksCreate as any, {
     userId,
     title: input.title,
     author: input.author ?? "Unknown",
@@ -115,7 +122,7 @@ export async function persistPreparedUpload(
     characterCount: 0,
   });
 
-  const jobId = await client.mutation(api.jobs.create, {
+  const jobId = await client.mutation(FN.jobsCreate as any, {
     entityType: "book",
     entityId: bookId,
     jobType: "discover_characters",
@@ -135,9 +142,9 @@ export async function persistPreparedUpload(
   const discovery = await kickoffDiscoveryWorkflow(kickoff);
 
   if (discovery.mode === "trigger") {
-    await client.mutation(api.discovery.markTriggered, {
-      bookId: bookId as Id<"books">,
-      jobId: jobId as Id<"jobs">,
+    await client.mutation(FN.discoveryMarkTriggered as any, {
+      bookId,
+      jobId,
       triggerRunId: discovery.runId,
     });
   }
@@ -160,18 +167,18 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
     };
   }
 
-  const books = await client.query(api.books.listByUser, { userId });
+  const books = (await client.query(FN.booksListByUser as any, { userId })) as Array<Record<string, any>>;
 
   const jobs = books.length
-    ? await client.query(api.jobs.listByEntityIds, {
-        entityIds: books.map((book) => book._id as Id<"books">),
-      })
+    ? ((await client.query(FN.jobsListByEntityIds as any, {
+        entityIds: books.map((book) => book._id),
+      })) as Array<Record<string, any>>)
     : [];
 
   const characters = books.length
-    ? await client.query(api.characters.listByBookIds, {
-        bookIds: books.map((book) => book._id as Id<"books">),
-      })
+    ? ((await client.query(FN.charactersListByBookIds as any, {
+        bookIds: books.map((book) => book._id),
+      })) as Array<Record<string, any>>)
     : [];
 
   return {
