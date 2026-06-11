@@ -47,6 +47,13 @@ export const discoverCharactersKickoffSchema = z.object({
   sourceFileKey: z.string().min(1),
 });
 
+export const generateAuraKickoffSchema = z.object({
+  bookId: z.string().min(1),
+  auraId: z.string().min(1),
+  jobId: z.string().min(1),
+  userId: z.string().min(1),
+});
+
 export const storageObjectSchema = z.object({
   key: z.string().min(1),
   bucket: z.string().min(1),
@@ -97,6 +104,27 @@ export const characterSchema = z.object({
   assignedVoiceId: z.string().min(1).optional(),
 });
 
+export const auraSchema = z.object({
+  id: z.string().min(1),
+  bookId: z.string().min(1),
+  title: z.string().min(1),
+  status: auraStatusSchema,
+  triggerRunId: z.string().min(1).optional(),
+  errorMessage: z.string().min(1).optional(),
+});
+
+export const scriptLineSchema = z.object({
+  id: z.string().min(1),
+  auraId: z.string().min(1),
+  lineNumber: z.number().int().positive(),
+  speakerName: z.string().min(1),
+  characterId: z.string().min(1),
+  voiceId: z.string().min(1),
+  text: z.string().min(1),
+  status: scriptLineStatusSchema,
+  audioUrl: z.string().url().optional(),
+});
+
 export const voiceProviderSchema = z.enum(["gemini"]);
 
 export const voiceSchema = z.object({
@@ -134,10 +162,13 @@ export type AuraStatus = z.infer<typeof auraStatusSchema>;
 export type ScriptLineStatus = z.infer<typeof scriptLineStatusSchema>;
 export type WorkflowJobStatus = z.infer<typeof workflowJobStatusSchema>;
 export type DiscoverCharactersKickoff = z.infer<typeof discoverCharactersKickoffSchema>;
+export type GenerateAuraKickoff = z.infer<typeof generateAuraKickoffSchema>;
 export type StorageObject = z.infer<typeof storageObjectSchema>;
 export type BookUploadInput = z.infer<typeof bookUploadInputSchema>;
 export type Book = z.infer<typeof bookSchema>;
 export type Character = z.infer<typeof characterSchema>;
+export type Aura = z.infer<typeof auraSchema>;
+export type ScriptLine = z.infer<typeof scriptLineSchema>;
 export type VoiceProvider = z.infer<typeof voiceProviderSchema>;
 export type Voice = z.infer<typeof voiceSchema>;
 export type WorkflowJob = z.infer<typeof workflowJobSchema>;

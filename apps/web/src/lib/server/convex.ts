@@ -1,17 +1,20 @@
 import { ConvexHttpClient } from "convex/browser";
 import {
   buildBookStateSummaries,
+  type Aura,
   type BookDetail,
   type BookStateInput,
   type BookStateSummary,
   type BookUploadInput,
   type CharacterStateInput,
   type DiscoverCharactersKickoff,
+  type GenerateAuraKickoff,
+  type ScriptLine,
   type SourceFileType,
   type Voice,
   type WorkflowJobStateInput,
 } from "@libra/shared";
-import { createDiscoverCharactersPayload, discoverCharactersWorkflowId } from "@libra/trigger";
+import { createDiscoverCharactersPayload, discoverCharactersWorkflowId, createGenerateAuraPayload, generateAuraWorkflowId } from "@libra/trigger";
 import { configure, tasks } from "@trigger.dev/sdk/v3";
 
 export type PersistPreparedUploadInput = {
@@ -31,6 +34,10 @@ export type PersistPreparedUploadResult =
 export type DiscoveryKickoffResult =
   | { mode: "trigger"; runId: string }
   | { mode: "deferred"; reason: string };
+
+export type GenerateAuraResult =
+  | { mode: "trigger"; auraId: string; jobId: string; runId: string }
+  | { mode: "deferred"; auraId?: string; jobId?: string; reason: string };
 
 export type ListBooksResult =
   | {
@@ -65,6 +72,10 @@ const FN = {
   charactersAssignVoice: "characters:assignVoice",
   voicesListByUser: "voices:listByUser",
   voicesCreate: "voices:create",
+  aurasCreate: "auras:create",
+  aurasGetByBookId: "auras:getByBookId",
+  scriptLinesListByAuraId: "scriptLines:listByAuraId",
+  auraGenerationMarkTriggered: "auraGeneration:markTriggered",
 } as const;
 
 type ConvexClient = NonNullable<ReturnType<typeof getConvexClient>>;
@@ -139,6 +150,36 @@ function mapVoice(voice: ConvexRecord): Voice {
   };
 }
 
+function mapAura(aura: ConvexRecord): Aura {
+  const triggerRunId = optionalStringField(aura, "triggerRunId");
+  const errorMessage = optionalStringField(aura, "errorMessage");
+
+  return {
+    id: stringField(aura, "_id"),
+    bookId: stringField(aura, "bookId"),
+    title: stringField(aura, "title"),
+    status: stringField(aura, "status") as Aura["status"],
+    ...(triggerRunId ? { triggerRunId } : {}),
+    ...(errorMessage ? { errorMessage } : {}),
+  };
+}
+
+function mapScriptLine(line: ConvexRecord): ScriptLine {
+  const audioUrl = optionalStringField(line, "audioUrl");
+
+  return {
+    id: stringField(line, "_id"),
+    auraId: stringField(line, "auraId"),
+    lineNumber: numberField(line, "lineNumber"),
+    speakerName: stringField(line, "speakerName"),
+    characterId: stringField(line, "characterId"),
+    voiceId: stringField(line, "voiceId"),
+    text: stringField(line, "text"),
+    status: stringField(line, "status") as ScriptLine["status"],
+    ...(audioUrl ? { audioUrl } : {}),
+  };
+}
+
 function getConvexClient() {
   const deploymentUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!deploymentUrl) return null;
@@ -181,6 +222,28 @@ async function kickoffDiscoveryWorkflow(kickoff: DiscoverCharactersKickoff): Pro
     mode: "trigger",
     runId: handle.id,
   };
+}
+
+async function kickoffGenerateAuraWorkflow(kickoff: GenerateAuraKickoff): Promise<{ mode: "trigger"; runId: string } | { mode: "deferred"; reason: string }> {
+  const triggerConfig = getTriggerConfig();
+  if (!triggerConfig) {
+    return {
+      mode: "deferred",
+      reason: "Set TRIGGER_SECRET_KEY to kick off the real aura generation workflow.",
+    };
+  }
+
+  configure({
+    accessToken: triggerConfig.accessToken,
+    ...(triggerConfig.baseURL ? { baseURL: triggerConfig.baseURL } : {}),
+  });
+
+  const handle = await tasks.trigger(generateAuraWorkflowId, createGenerateAuraPayload(kickoff), {
+    idempotencyKey: `generate-aura:${kickoff.jobId}`,
+    tags: [`book:${kickoff.bookId}`, `aura:${kickoff.auraId}`, `job:${kickoff.jobId}`],
+  });
+
+  return { mode: "trigger", runId: handle.id };
 }
 
 export async function persistPreparedUpload(
@@ -299,10 +362,11 @@ export async function getBookById(userId: string, bookId: string): Promise<GetBo
     return { mode: "convex", book: null };
   }
 
-  const [jobs, characters, voices] = await Promise.all([
+  const [jobs, characters, voices, aura] = await Promise.all([
     client.query(queryRef(FN.jobsListByEntityIds), { entityIds: [bookId] }) as Promise<ConvexRecord[]>,
     client.query(queryRef(FN.charactersListByBookId), { bookId }) as Promise<ConvexRecord[]>,
     client.query(queryRef(FN.voicesListByUser), { userId }) as Promise<ConvexRecord[]>,
+    client.query(queryRef(FN.aurasGetByBookId), { bookId }) as Promise<ConvexRecord | null>,
   ]);
 
   const [summary] = buildBookStateSummaries({
@@ -311,7 +375,8 @@ export async function getBookById(userId: string, bookId: string): Promise<GetBo
     characters: characters.map(mapCharacter),
   });
 
-  return { mode: "convex", book: summary ? { ...summary, voices: voices.map(mapVoice) } : null };
+  const scriptLines = aura ? ((await client.query(queryRef(FN.scriptLinesListByAuraId), { auraId: stringField(aura, "_id") })) as ConvexRecord[]) : [];
+  return { mode: "convex", book: summary ? { ...summary, voices: voices.map(mapVoice), ...(aura ? { aura: { ...mapAura(aura), scriptLines: scriptLines.map(mapScriptLine) } } : {}) } : null };
 }
 
 export async function updateCharacterById(
@@ -379,4 +444,61 @@ export async function assignVoiceToCharacter(
     ...(assignedVoiceId ? { assignedVoiceId } : {}),
   });
   return { mode: "convex", characterId: String(updatedId) };
+}
+
+
+
+export async function generateAuraForBook(userId: string, bookId: string): Promise<GenerateAuraResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to generate auras." };
+  }
+
+  const book = (await client.query(queryRef(FN.booksGetById), { userId, bookId })) as ConvexRecord | null;
+  if (!book) throw new Error("Book not found.");
+
+  const characters = (await client.query(queryRef(FN.charactersListByBookId), { bookId })) as ConvexRecord[];
+  if (characters.length === 0) {
+    throw new Error("Discover characters before generating an aura.");
+  }
+
+  const uncast = characters.map(mapCharacter).filter((character) => !character.assignedVoiceId);
+  if (uncast.length > 0) {
+    throw new Error(`Assign voices to every character before generating an aura: ${uncast.map((character) => character.name).join(", ")}.`);
+  }
+
+  const auraId = await client.mutation(mutationRef(FN.aurasCreate), {
+    bookId,
+    title: `${stringField(book, "title")} aura`,
+    status: "queued",
+  });
+
+  const jobId = await client.mutation(mutationRef(FN.jobsCreate), {
+    entityType: "aura",
+    entityId: String(auraId),
+    jobType: "generate_script",
+    status: "queued",
+    progressCurrent: 0,
+    progressTotal: 3,
+    step: "queued_for_aura_generation",
+  });
+
+  const kickoff = {
+    bookId,
+    auraId: String(auraId),
+    jobId: String(jobId),
+    userId,
+  } satisfies GenerateAuraKickoff;
+
+  const generation = await kickoffGenerateAuraWorkflow(kickoff);
+  if (generation.mode === "trigger") {
+    await client.mutation(mutationRef(FN.auraGenerationMarkTriggered), {
+      auraId,
+      jobId,
+      triggerRunId: generation.runId,
+    });
+    return { mode: "trigger", auraId: String(auraId), jobId: String(jobId), runId: generation.runId };
+  }
+
+  return { mode: "deferred", auraId: String(auraId), jobId: String(jobId), reason: generation.reason };
 }

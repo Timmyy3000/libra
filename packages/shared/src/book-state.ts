@@ -1,4 +1,4 @@
-import type { BookStatus, Character, SourceFileType, Voice, WorkflowJobStatus } from "./schemas";
+import type { Aura, BookStatus, Character, ScriptLine, SourceFileType, Voice, WorkflowJobStatus } from "./schemas";
 
 export type BookStateInput = {
   _id: string;
@@ -57,6 +57,7 @@ export type BookStateSummary = {
 
 export type BookDetail = BookStateSummary & {
   voices: Voice[];
+  aura?: Aura & { scriptLines: ScriptLine[] };
 };
 
 function inferPlaybackStage(bookStatus: BookStatus, currentJob?: WorkflowJobStateInput): PlaybackStage {
