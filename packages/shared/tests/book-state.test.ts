@@ -89,6 +89,8 @@ describe("buildBookStateSummaries", () => {
           progressCurrent: 1,
           progressTotal: 3,
         },
+        playbackStage: "discovering_cast",
+        playbackReadiness: "not_ready",
       },
     ]);
   });
@@ -119,6 +121,8 @@ describe("buildBookStateSummaries", () => {
         sourceFileType: "pdf",
         characterCount: 12,
         characters: [],
+        playbackStage: "ready_for_casting",
+        playbackReadiness: "not_ready",
       },
     ]);
   });
