@@ -4,7 +4,7 @@ import { mutation, query } from "./_generated/server";
 export const create = mutation({
   args: {
     entityType: v.union(v.literal("book"), v.literal("aura")),
-    entityId: v.id("books"),
+    entityId: v.string(),
     jobType: v.union(
       v.literal("discover_characters"),
       v.literal("generate_script"),
@@ -30,7 +30,7 @@ export const create = mutation({
 
 export const listByEntityIds = query({
   args: {
-    entityIds: v.array(v.id("books")),
+    entityIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     const jobs = await Promise.all(

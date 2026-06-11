@@ -34,6 +34,7 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
   const [busyCharacterId, setBusyCharacterId] = useState<string | null>(null);
   const [voiceDraft, setVoiceDraft] = useState({ label: "", providerVoiceId: "", previewUrl: "" });
   const [creatingVoice, setCreatingVoice] = useState(false);
+  const [generatingAura, setGeneratingAura] = useState(false);
 
   const load = useCallback(async (notice?: string) => {
     const response = await fetch(`/api/books/${bookId}`);
@@ -142,6 +143,21 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
     await load(payload.data.mode === "deferred" ? payload.data.reason : "Voice created.");
   }
 
+
+  async function generateAura() {
+    setGeneratingAura(true);
+    const response = await fetch(`/api/books/${bookId}/aura`, { method: "POST" });
+    const payload = (await response.json()) as MutationResponse;
+    setGeneratingAura(false);
+
+    if (!response.ok || !payload.ok) {
+      setState({ status: "error", message: payload.ok ? "Failed to generate aura." : payload.error });
+      return;
+    }
+
+    await load(payload.data.mode === "deferred" ? payload.data.reason : "Aura generation queued.");
+  }
+
   async function assignVoice(characterId: string, assignedVoiceId: string) {
     setBusyCharacterId(characterId);
     const response = await fetch(`/api/books/${bookId}/characters/${characterId}/voice`, {
@@ -226,6 +242,47 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
               </div>
             </section>
 
+
+            <section className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">Aura Generation</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Script lines</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Generate the first persisted aura script once every discovered character has a voice.</p>
+                </div>
+                {(() => {
+                  const uncastCharacters = state.book.characters.filter((character) => !character.assignedVoiceId);
+                  const canGenerateAura = state.book.characters.length > 0 && uncastCharacters.length === 0;
+                  return (
+                    <button disabled={generatingAura || !canGenerateAura} onClick={() => void generateAura()} className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-400 disabled:opacity-50">
+                      {generatingAura ? "Generating…" : state.book.aura ? "Regenerate aura" : "Generate aura"}
+                    </button>
+                  );
+                })()}
+              </div>
+              {state.book.characters.some((character) => !character.assignedVoiceId) ? (
+                <p className="mt-4 rounded-2xl border border-amber-900 bg-amber-950/40 p-4 text-sm text-amber-200">Assign voices to every character before generating an aura.</p>
+              ) : null}
+              {state.book.aura ? (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
+                    <div className="font-medium text-white">{state.book.aura.title}</div>
+                    <div className="mt-1 text-zinc-400">status: {format(state.book.aura.status)}</div>
+                    {state.book.aura.errorMessage ? <p className="mt-2 text-red-200">{state.book.aura.errorMessage}</p> : null}
+                  </div>
+                  <div className="space-y-3">
+                    {state.book.aura.scriptLines.map((line) => (
+                      <div key={line.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
+                        <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Line {line.lineNumber} · {line.speakerName} · {line.status}</div>
+                        <p className="mt-2 text-zinc-100">{line.text}</p>
+                      </div>
+                    ))}
+                    {state.book.aura.scriptLines.length === 0 ? <p className="text-sm text-zinc-500">No script lines yet. Refresh after the Trigger task runs.</p> : null}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
             <section className="space-y-4">
               <h2 className="text-xl font-semibold text-white">Discovered characters</h2>
               {state.book.characters.length === 0 ? <p className="text-zinc-500">No characters have been discovered yet.</p> : null}
@@ -275,3 +332,4 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
     </main>
   );
 }
+
