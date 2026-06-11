@@ -37,3 +37,15 @@ export const listByUser = query({
       .collect();
   },
 });
+
+export const getById = query({
+  args: {
+    userId: v.string(),
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    const book = await ctx.db.get(args.bookId);
+    if (!book || book.userId !== args.userId) return null;
+    return book;
+  },
+});

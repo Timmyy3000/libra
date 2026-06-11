@@ -37,13 +37,29 @@ export type ListBooksResult =
     }
   | { mode: "deferred"; reason: string; books: [] };
 
+export type GetBookResult =
+  | { mode: "convex"; book: BookStateSummary | null }
+  | { mode: "deferred"; reason: string; book: null };
+
+export type UpdateCharacterInput = {
+  name: string;
+  description: string;
+  aliases: string[];
+};
+
+export type CharacterMutationResult = { mode: "convex"; characterId: string } | { mode: "deferred"; reason: string };
+
 const FN = {
   booksCreate: "books:create",
   booksListByUser: "books:listByUser",
   jobsCreate: "jobs:create",
-  jobsListByEntityIds: "jobs:listByEntityIds",
   discoveryMarkTriggered: "discovery:markTriggered",
+  booksGetById: "books:getById",
+  jobsListByEntityIds: "jobs:listByEntityIds",
   charactersListByBookIds: "characters:listByBookIds",
+  charactersListByBookId: "characters:listByBookId",
+  charactersUpdate: "characters:update",
+  charactersRemove: "characters:remove",
 } as const;
 
 type ConvexClient = NonNullable<ReturnType<typeof getConvexClient>>;
@@ -71,6 +87,38 @@ function numberField(record: ConvexRecord, field: string): number {
 function stringArrayField(record: ConvexRecord, field: string): string[] {
   const value = record[field];
   return Array.isArray(value) ? value.map(String) : [];
+}
+
+function optionalStringField(record: ConvexRecord, field: string): string | undefined {
+  const value = record[field];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function mapJob(job: ConvexRecord): WorkflowJobStateInput {
+  return {
+    _id: stringField(job, "_id"),
+    _creationTime: numberField(job, "_creationTime"),
+    entityId: stringField(job, "entityId"),
+    jobType: stringField(job, "jobType") as WorkflowJobStateInput["jobType"],
+    status: stringField(job, "status") as WorkflowJobStateInput["status"],
+    step: stringField(job, "step"),
+    progressCurrent: numberField(job, "progressCurrent"),
+    progressTotal: numberField(job, "progressTotal"),
+  };
+}
+
+function mapCharacter(character: ConvexRecord): CharacterStateInput {
+  const assignedVoiceId = optionalStringField(character, "assignedVoiceId");
+
+  return {
+    _id: stringField(character, "_id"),
+    bookId: stringField(character, "bookId"),
+    name: stringField(character, "name"),
+    description: stringField(character, "description"),
+    aliases: stringArrayField(character, "aliases"),
+    sampleLineCount: numberField(character, "sampleLineCount"),
+    ...(assignedVoiceId ? { assignedVoiceId } : {}),
+  };
 }
 
 function getConvexClient() {
@@ -212,24 +260,60 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
     mode: "convex",
     books: buildBookStateSummaries({
       books: books as BookStateInput[],
-      jobs: jobs.map((job) => ({
-        _id: stringField(job, "_id"),
-        _creationTime: numberField(job, "_creationTime"),
-        entityId: stringField(job, "entityId"),
-        jobType: stringField(job, "jobType"),
-        status: stringField(job, "status"),
-        step: stringField(job, "step"),
-        progressCurrent: numberField(job, "progressCurrent"),
-        progressTotal: numberField(job, "progressTotal"),
-      })) as WorkflowJobStateInput[],
-      characters: characters.map((character) => ({
-        _id: stringField(character, "_id"),
-        bookId: stringField(character, "bookId"),
-        name: stringField(character, "name"),
-        description: stringField(character, "description"),
-        aliases: stringArrayField(character, "aliases"),
-        sampleLineCount: numberField(character, "sampleLineCount"),
-      })) as CharacterStateInput[],
+      jobs: jobs.map(mapJob),
+      characters: characters.map(mapCharacter),
     }),
   };
+}
+
+export async function getBookById(userId: string, bookId: string): Promise<GetBookResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return {
+      mode: "deferred",
+      reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to read persisted books.",
+      book: null,
+    };
+  }
+
+  const book = (await client.query(queryRef(FN.booksGetById), { userId, bookId })) as ConvexRecord | null;
+  if (!book) {
+    return { mode: "convex", book: null };
+  }
+
+  const [jobs, characters] = await Promise.all([
+    client.query(queryRef(FN.jobsListByEntityIds), { entityIds: [bookId] }) as Promise<ConvexRecord[]>,
+    client.query(queryRef(FN.charactersListByBookId), { bookId }) as Promise<ConvexRecord[]>,
+  ]);
+
+  const [summary] = buildBookStateSummaries({
+    books: [book as BookStateInput],
+    jobs: jobs.map(mapJob),
+    characters: characters.map(mapCharacter),
+  });
+
+  return { mode: "convex", book: summary ?? null };
+}
+
+export async function updateCharacterById(
+  characterId: string,
+  input: UpdateCharacterInput,
+): Promise<CharacterMutationResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to update characters." };
+  }
+
+  const updatedId = await client.mutation(mutationRef(FN.charactersUpdate), { characterId, ...input });
+  return { mode: "convex", characterId: String(updatedId) };
+}
+
+export async function deleteCharacterById(characterId: string): Promise<CharacterMutationResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to delete characters." };
+  }
+
+  const deletedId = await client.mutation(mutationRef(FN.charactersRemove), { characterId });
+  return { mode: "convex", characterId: String(deletedId) };
 }

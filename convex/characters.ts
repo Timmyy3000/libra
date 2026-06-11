@@ -54,3 +54,42 @@ export const listByBookIds = query({
     return characters.flat();
   },
 });
+
+export const listByBookId = query({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("characters")
+      .withIndex("by_bookId", (q) => q.eq("bookId", args.bookId))
+      .collect();
+  },
+});
+
+export const update = mutation({
+  args: {
+    characterId: v.id("characters"),
+    name: v.string(),
+    description: v.string(),
+    aliases: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.characterId, {
+      name: args.name,
+      description: args.description,
+      aliases: args.aliases,
+    });
+    return args.characterId;
+  },
+});
+
+export const remove = mutation({
+  args: {
+    characterId: v.id("characters"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.characterId);
+    return args.characterId;
+  },
+});
