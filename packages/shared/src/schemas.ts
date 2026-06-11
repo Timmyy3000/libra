@@ -97,6 +97,19 @@ export const characterSchema = z.object({
   assignedVoiceId: z.string().min(1).optional(),
 });
 
+export const voiceProviderSchema = z.enum(["gemini"]);
+
+export const voiceSchema = z.object({
+  id: z.string().min(1),
+  userId: z.string().min(1),
+  label: z.string().min(1),
+  provider: voiceProviderSchema,
+  providerVoiceId: z.string().min(1),
+  previewUrl: z.string().url().optional(),
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+});
+
 export const workflowJobSchema = z.object({
   id: z.string().min(1),
   entityType: z.enum(["book", "aura"]),
@@ -125,4 +138,6 @@ export type StorageObject = z.infer<typeof storageObjectSchema>;
 export type BookUploadInput = z.infer<typeof bookUploadInputSchema>;
 export type Book = z.infer<typeof bookSchema>;
 export type Character = z.infer<typeof characterSchema>;
+export type VoiceProvider = z.infer<typeof voiceProviderSchema>;
+export type Voice = z.infer<typeof voiceSchema>;
 export type WorkflowJob = z.infer<typeof workflowJobSchema>;

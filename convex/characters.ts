@@ -84,6 +84,19 @@ export const update = mutation({
   },
 });
 
+export const assignVoice = mutation({
+  args: {
+    characterId: v.id("characters"),
+    assignedVoiceId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.characterId, {
+      assignedVoiceId: args.assignedVoiceId && args.assignedVoiceId.length > 0 ? args.assignedVoiceId : undefined,
+    });
+    return args.characterId;
+  },
+});
+
 export const remove = mutation({
   args: {
     characterId: v.id("characters"),

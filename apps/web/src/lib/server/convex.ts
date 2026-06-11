@@ -1,12 +1,14 @@
 import { ConvexHttpClient } from "convex/browser";
 import {
   buildBookStateSummaries,
+  type BookDetail,
   type BookStateInput,
   type BookStateSummary,
   type BookUploadInput,
   type CharacterStateInput,
   type DiscoverCharactersKickoff,
   type SourceFileType,
+  type Voice,
   type WorkflowJobStateInput,
 } from "@libra/shared";
 import { createDiscoverCharactersPayload, discoverCharactersWorkflowId } from "@libra/trigger";
@@ -38,7 +40,7 @@ export type ListBooksResult =
   | { mode: "deferred"; reason: string; books: [] };
 
 export type GetBookResult =
-  | { mode: "convex"; book: BookStateSummary | null }
+  | { mode: "convex"; book: BookDetail | null }
   | { mode: "deferred"; reason: string; book: null };
 
 export type UpdateCharacterInput = {
@@ -60,6 +62,9 @@ const FN = {
   charactersListByBookId: "characters:listByBookId",
   charactersUpdate: "characters:update",
   charactersRemove: "characters:remove",
+  charactersAssignVoice: "characters:assignVoice",
+  voicesListByUser: "voices:listByUser",
+  voicesCreate: "voices:create",
 } as const;
 
 type ConvexClient = NonNullable<ReturnType<typeof getConvexClient>>;
@@ -118,6 +123,19 @@ function mapCharacter(character: ConvexRecord): CharacterStateInput {
     aliases: stringArrayField(character, "aliases"),
     sampleLineCount: numberField(character, "sampleLineCount"),
     ...(assignedVoiceId ? { assignedVoiceId } : {}),
+  };
+}
+
+function mapVoice(voice: ConvexRecord): Voice {
+  const previewUrl = optionalStringField(voice, "previewUrl");
+
+  return {
+    id: stringField(voice, "_id"),
+    userId: stringField(voice, "userId"),
+    label: stringField(voice, "label"),
+    provider: stringField(voice, "provider") as Voice["provider"],
+    providerVoiceId: stringField(voice, "providerVoiceId"),
+    ...(previewUrl ? { previewUrl } : {}),
   };
 }
 
@@ -281,9 +299,10 @@ export async function getBookById(userId: string, bookId: string): Promise<GetBo
     return { mode: "convex", book: null };
   }
 
-  const [jobs, characters] = await Promise.all([
+  const [jobs, characters, voices] = await Promise.all([
     client.query(queryRef(FN.jobsListByEntityIds), { entityIds: [bookId] }) as Promise<ConvexRecord[]>,
     client.query(queryRef(FN.charactersListByBookId), { bookId }) as Promise<ConvexRecord[]>,
+    client.query(queryRef(FN.voicesListByUser), { userId }) as Promise<ConvexRecord[]>,
   ]);
 
   const [summary] = buildBookStateSummaries({
@@ -292,7 +311,7 @@ export async function getBookById(userId: string, bookId: string): Promise<GetBo
     characters: characters.map(mapCharacter),
   });
 
-  return { mode: "convex", book: summary ?? null };
+  return { mode: "convex", book: summary ? { ...summary, voices: voices.map(mapVoice) } : null };
 }
 
 export async function updateCharacterById(
@@ -316,4 +335,48 @@ export async function deleteCharacterById(characterId: string): Promise<Characte
 
   const deletedId = await client.mutation(mutationRef(FN.charactersRemove), { characterId });
   return { mode: "convex", characterId: String(deletedId) };
+}
+
+export async function listVoicesByUser(
+  userId: string,
+): Promise<{ mode: "convex"; voices: Voice[] } | { mode: "deferred"; reason: string; voices: [] }> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to read voices.", voices: [] };
+  }
+
+  const voices = (await client.query(queryRef(FN.voicesListByUser), { userId })) as ConvexRecord[];
+  return { mode: "convex", voices: voices.map(mapVoice) };
+}
+
+export async function createVoiceForUser(input: {
+  userId: string;
+  label: string;
+  provider: Voice["provider"];
+  providerVoiceId: string;
+  previewUrl?: string;
+}): Promise<{ mode: "convex"; voiceId: string } | { mode: "deferred"; reason: string }> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to create voices." };
+  }
+
+  const voiceId = await client.mutation(mutationRef(FN.voicesCreate), input);
+  return { mode: "convex", voiceId: String(voiceId) };
+}
+
+export async function assignVoiceToCharacter(
+  characterId: string,
+  assignedVoiceId?: string,
+): Promise<CharacterMutationResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to assign voices." };
+  }
+
+  const updatedId = await client.mutation(mutationRef(FN.charactersAssignVoice), {
+    characterId,
+    ...(assignedVoiceId ? { assignedVoiceId } : {}),
+  });
+  return { mode: "convex", characterId: String(updatedId) };
 }

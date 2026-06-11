@@ -1,4 +1,4 @@
-import type { BookStatus, Character, SourceFileType, WorkflowJobStatus } from "./schemas";
+import type { BookStatus, Character, SourceFileType, Voice, WorkflowJobStatus } from "./schemas";
 
 export type BookStateInput = {
   _id: string;
@@ -53,6 +53,10 @@ export type BookStateSummary = {
     progressCurrent: number;
     progressTotal: number;
   };
+};
+
+export type BookDetail = BookStateSummary & {
+  voices: Voice[];
 };
 
 function inferPlaybackStage(bookStatus: BookStatus, currentJob?: WorkflowJobStateInput): PlaybackStage {
