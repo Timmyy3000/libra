@@ -5,6 +5,7 @@ import {
   characterSchema,
   discoverCharactersKickoffSchema,
   storageObjectSchema,
+  voiceSchema,
   workflowJobSchema,
 } from "../src/schemas";
 
@@ -111,6 +112,34 @@ describe("characterSchema", () => {
 
     expect(parsed.aliases).toEqual(["Scrooge"]);
     expect(parsed.sampleLineCount).toBe(22);
+  });
+});
+
+describe("voiceSchema", () => {
+  it("captures a Gemini TTS voice catalog record", () => {
+    const parsed = voiceSchema.parse({
+      id: "voice_123",
+      userId: "user_123",
+      label: "Narrator - Zephyr",
+      provider: "gemini",
+      providerVoiceId: "Zephyr",
+      previewUrl: "https://example.com/zephyr-preview.mp3",
+    });
+
+    expect(parsed.provider).toBe("gemini");
+    expect(parsed.providerVoiceId).toBe("Zephyr");
+  });
+
+  it("rejects unsupported voice providers", () => {
+    expect(() =>
+      voiceSchema.parse({
+        id: "voice_123",
+        userId: "user_123",
+        label: "Unsupported",
+        provider: "other",
+        providerVoiceId: "Example",
+      }),
+    ).toThrowError(/provider/i);
   });
 });
 

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { BookStateSummary } from "@libra/shared";
+import type { BookDetail } from "@libra/shared";
 
 type BookResponse =
-  | { ok: true; data: { mode: "convex"; book: BookStateSummary } | { mode: "deferred"; reason: string; book: null } }
+  | { ok: true; data: { mode: "convex"; book: BookDetail } | { mode: "deferred"; reason: string; book: null } }
   | { ok: false; error: string };
 
 type CharacterDraft = {
@@ -28,10 +28,12 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
-    | { status: "success"; book: BookStateSummary; drafts: Record<string, CharacterDraft>; notice?: string }
+    | { status: "success"; book: BookDetail; drafts: Record<string, CharacterDraft>; notice?: string }
     | { status: "deferred"; reason: string }
   >({ status: "loading" });
   const [busyCharacterId, setBusyCharacterId] = useState<string | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState({ label: "", providerVoiceId: "", previewUrl: "" });
+  const [creatingVoice, setCreatingVoice] = useState(false);
 
   const load = useCallback(async (notice?: string) => {
     const response = await fetch(`/api/books/${bookId}`);
@@ -121,6 +123,43 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
     await load(payload.data.mode === "deferred" ? payload.data.reason : "Character deleted.");
   }
 
+  async function createVoice() {
+    setCreatingVoice(true);
+    const response = await fetch("/api/voices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: "gemini", ...voiceDraft }),
+    });
+    const payload = (await response.json()) as MutationResponse;
+    setCreatingVoice(false);
+
+    if (!response.ok || !payload.ok) {
+      setState({ status: "error", message: payload.ok ? "Failed to create voice." : payload.error });
+      return;
+    }
+
+    setVoiceDraft({ label: "", providerVoiceId: "", previewUrl: "" });
+    await load(payload.data.mode === "deferred" ? payload.data.reason : "Voice created.");
+  }
+
+  async function assignVoice(characterId: string, assignedVoiceId: string) {
+    setBusyCharacterId(characterId);
+    const response = await fetch(`/api/books/${bookId}/characters/${characterId}/voice`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignedVoiceId }),
+    });
+    const payload = (await response.json()) as MutationResponse;
+    setBusyCharacterId(null);
+
+    if (!response.ok || !payload.ok) {
+      setState({ status: "error", message: payload.ok ? "Failed to assign voice." : payload.error });
+      return;
+    }
+
+    await load(payload.data.mode === "deferred" ? payload.data.reason : "Voice assignment saved.");
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 px-6 py-10 text-zinc-100">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -160,11 +199,39 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
               {state.notice ? <p className="mt-4 text-sm text-emerald-300">{state.notice}</p> : null}
             </section>
 
+            <section className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-zinc-500">Voice Catalog</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Gemini TTS voices</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Create reusable Gemini voice records, then cast characters below.</p>
+                </div>
+                <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs text-zinc-300">{state.book.voices.length} voices</span>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <input value={voiceDraft.label} onChange={(event) => setVoiceDraft((draft) => ({ ...draft, label: event.target.value }))} placeholder="Label, e.g. Narrator Warm" className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400" />
+                <input value={voiceDraft.providerVoiceId} onChange={(event) => setVoiceDraft((draft) => ({ ...draft, providerVoiceId: event.target.value }))} placeholder="Gemini voice name, e.g. Kore" className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400" />
+                <input value={voiceDraft.previewUrl} onChange={(event) => setVoiceDraft((draft) => ({ ...draft, previewUrl: event.target.value }))} placeholder="Optional preview URL" className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white outline-none focus:border-indigo-400" />
+                <button disabled={creatingVoice || !voiceDraft.label.trim() || !voiceDraft.providerVoiceId.trim()} onClick={() => void createVoice()} className="rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50">Add voice</button>
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-2">
+                {state.book.voices.map((voice) => (
+                  <div key={voice.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
+                    <div className="font-medium text-white">{voice.label}</div>
+                    <div className="mt-1 text-zinc-400">{voice.provider} · {voice.providerVoiceId}</div>
+                    {voice.previewUrl ? <a href={voice.previewUrl} className="mt-2 inline-block text-indigo-300 hover:text-indigo-200">Preview</a> : null}
+                  </div>
+                ))}
+                {state.book.voices.length === 0 ? <p className="text-sm text-zinc-500">No voices yet. Add a Gemini voice record to start casting.</p> : null}
+              </div>
+            </section>
+
             <section className="space-y-4">
               <h2 className="text-xl font-semibold text-white">Discovered characters</h2>
               {state.book.characters.length === 0 ? <p className="text-zinc-500">No characters have been discovered yet.</p> : null}
               {state.book.characters.map((character) => {
                 const draft = state.drafts[character.id];
+                const assignedVoice = state.book.voices.find((voice) => voice.id === character.assignedVoiceId);
                 return (
                   <article key={character.id} className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5">
                     <div className="grid gap-4 md:grid-cols-2">
@@ -181,8 +248,18 @@ export function BookDetailClient({ bookId }: { bookId: string }) {
                       <span>Description</span>
                       <textarea value={draft?.description ?? ""} onChange={(event) => updateDraft(character.id, { description: event.target.value })} rows={3} className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-white outline-none focus:border-indigo-400" />
                     </label>
+                    <label className="mt-4 block space-y-2 text-sm text-zinc-300">
+                      <span>Cast voice</span>
+                      <select value={character.assignedVoiceId ?? ""} disabled={busyCharacterId === character.id} onChange={(event) => void assignVoice(character.id, event.target.value)} className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-white outline-none focus:border-indigo-400 disabled:opacity-50">
+                        <option value="">Unassigned</option>
+                        {state.book.voices.map((voice) => (
+                          <option key={voice.id} value={voice.id}>{voice.label} · {voice.providerVoiceId}</option>
+                        ))}
+                      </select>
+                      <span className="block text-xs text-zinc-500">{assignedVoice ? `Assigned: ${assignedVoice.label} (${assignedVoice.providerVoiceId})` : "No voice assigned."}</span>
+                    </label>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-500">
-                      <span>{character.sampleLineCount} sample lines{character.assignedVoiceId ? ` · voice ${character.assignedVoiceId}` : ""}</span>
+                      <span>{character.sampleLineCount} sample lines{assignedVoice ? ` · ${assignedVoice.label}` : ""}</span>
                       <div className="flex gap-2">
                         <button disabled={busyCharacterId === character.id} onClick={() => void saveCharacter(character.id)} className="rounded-full bg-indigo-500 px-4 py-2 font-medium text-white hover:bg-indigo-400 disabled:opacity-50">Save</button>
                         <button disabled={busyCharacterId === character.id} onClick={() => void deleteCharacter(character.id)} className="rounded-full border border-red-900 px-4 py-2 font-medium text-red-200 hover:bg-red-950 disabled:opacity-50">Delete</button>

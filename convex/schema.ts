@@ -32,6 +32,14 @@ export default defineSchema({
     assignedVoiceId: v.optional(v.string()),
   }).index("by_bookId", ["bookId"]),
 
+  voices: defineTable({
+    userId: v.string(),
+    label: v.string(),
+    provider: v.literal("gemini"),
+    providerVoiceId: v.string(),
+    previewUrl: v.optional(v.string()),
+  }).index("by_userId", ["userId"]),
+
   jobs: defineTable({
     entityType: v.union(v.literal("book"), v.literal("aura")),
     entityId: v.id("books"),
