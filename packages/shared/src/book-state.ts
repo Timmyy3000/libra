@@ -28,6 +28,7 @@ export type CharacterStateInput = {
   description: string;
   aliases: string[];
   sampleLineCount: number;
+  assignedVoiceId?: string;
 };
 
 export type PlaybackStage = "discovering_cast" | "ready_for_casting" | "ready_for_playback" | "blocked";
@@ -41,7 +42,7 @@ export type BookStateSummary = {
   status: BookStatus;
   sourceFileType: SourceFileType;
   characterCount: number;
-  characters: Array<Pick<Character, "id" | "name" | "description" | "aliases" | "sampleLineCount">>;
+  characters: Array<Pick<Character, "id" | "name" | "description" | "aliases" | "sampleLineCount" | "assignedVoiceId">>;
   playbackStage: PlaybackStage;
   playbackReadiness: PlaybackReadiness;
   currentJob?: {
@@ -101,6 +102,7 @@ export function buildBookStateSummaries(input: {
       description: character.description,
       aliases: character.aliases,
       sampleLineCount: character.sampleLineCount,
+      ...(character.assignedVoiceId ? { assignedVoiceId: character.assignedVoiceId } : {}),
     });
     charactersByBookId.set(character.bookId, existing);
   }

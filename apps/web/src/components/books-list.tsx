@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { BookStateSummary } from "@libra/shared";
 
@@ -82,7 +83,9 @@ export function BooksList() {
                 <li key={book.id} className="rounded-2xl border border-zinc-800 px-4 py-3 text-zinc-200">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-1">
-                      <p className="font-medium text-white">{book.title}</p>
+                      <Link href={`/books/${book.id}`} className="font-medium text-white hover:text-indigo-200">
+                        {book.title}
+                      </Link>
                       <p className="text-xs text-zinc-400">
                         {book.author} · {book.sourceFileType} · {book.characterCount} characters
                       </p>

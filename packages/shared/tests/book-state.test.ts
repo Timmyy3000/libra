@@ -45,6 +45,7 @@ describe("buildBookStateSummaries", () => {
           description: "A cold-hearted miser",
           aliases: ["Scrooge"],
           sampleLineCount: 22,
+          assignedVoiceId: "voice_scrooge",
         },
         {
           _id: "char_2",
@@ -72,6 +73,7 @@ describe("buildBookStateSummaries", () => {
             description: "A cold-hearted miser",
             aliases: ["Scrooge"],
             sampleLineCount: 22,
+            assignedVoiceId: "voice_scrooge",
           },
           {
             id: "char_2",
