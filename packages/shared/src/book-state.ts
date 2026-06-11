@@ -30,6 +30,10 @@ export type CharacterStateInput = {
   sampleLineCount: number;
 };
 
+export type PlaybackStage = "discovering_cast" | "ready_for_casting" | "ready_for_playback" | "blocked";
+
+export type PlaybackReadiness = "not_ready" | "ready";
+
 export type BookStateSummary = {
   id: string;
   title: string;
@@ -38,6 +42,8 @@ export type BookStateSummary = {
   sourceFileType: SourceFileType;
   characterCount: number;
   characters: Array<Pick<Character, "id" | "name" | "description" | "aliases" | "sampleLineCount">>;
+  playbackStage: PlaybackStage;
+  playbackReadiness: PlaybackReadiness;
   currentJob?: {
     id: string;
     jobType: WorkflowJobStateInput["jobType"];
@@ -47,6 +53,30 @@ export type BookStateSummary = {
     progressTotal: number;
   };
 };
+
+function inferPlaybackStage(bookStatus: BookStatus, currentJob?: WorkflowJobStateInput): PlaybackStage {
+  if (bookStatus === "failed" || currentJob?.status === "failed") {
+    return "blocked";
+  }
+
+  if (
+    currentJob &&
+    (currentJob.jobType === "generate_audio" || currentJob.jobType === "compile_aura") &&
+    currentJob.status === "completed"
+  ) {
+    return "ready_for_playback";
+  }
+
+  if (bookStatus === "characters_ready") {
+    return "ready_for_casting";
+  }
+
+  return "discovering_cast";
+}
+
+function inferPlaybackReadiness(playbackStage: PlaybackStage): PlaybackReadiness {
+  return playbackStage === "ready_for_playback" ? "ready" : "not_ready";
+}
 
 export function buildBookStateSummaries(input: {
   books: BookStateInput[];
@@ -77,6 +107,7 @@ export function buildBookStateSummaries(input: {
 
   return input.books.map((book) => {
     const currentJob = latestJobsByEntityId.get(book._id);
+    const playbackStage = inferPlaybackStage(book.status, currentJob);
 
     return {
       id: book._id,
@@ -86,6 +117,8 @@ export function buildBookStateSummaries(input: {
       sourceFileType: book.sourceFileType,
       characterCount: book.characterCount,
       characters: charactersByBookId.get(book._id) ?? [],
+      playbackStage,
+      playbackReadiness: inferPlaybackReadiness(playbackStage),
       ...(currentJob
         ? {
             currentJob: {

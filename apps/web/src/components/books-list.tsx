@@ -11,6 +11,17 @@ function formatStep(step: string) {
   return step.replace(/_/g, " ");
 }
 
+function formatStage(stage: string) {
+  return stage.replace(/_/g, " ");
+}
+
+function stageClass(stage: string) {
+  if (stage === "ready_for_playback") return "bg-emerald-950 text-emerald-200";
+  if (stage === "blocked") return "bg-red-950 text-red-200";
+  if (stage === "ready_for_casting") return "bg-amber-950 text-amber-200";
+  return "bg-zinc-800 text-zinc-300";
+}
+
 export function BooksList() {
   const [state, setState] = useState<
     | { status: "loading" }
@@ -78,6 +89,12 @@ export function BooksList() {
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full bg-zinc-800 px-3 py-1 text-zinc-300">book: {book.status}</span>
+                      <span className={`rounded-full px-3 py-1 ${stageClass(book.playbackStage)}`}>
+                        stage: {formatStage(book.playbackStage)}
+                      </span>
+                      {book.playbackReadiness === "ready" ? (
+                        <span className="rounded-full bg-emerald-900 px-3 py-1 text-emerald-200">playback ready</span>
+                      ) : null}
                       {book.currentJob ? (
                         <span className="rounded-full bg-indigo-950 px-3 py-1 text-indigo-200">
                           job: {book.currentJob.status}

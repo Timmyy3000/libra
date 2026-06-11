@@ -46,6 +46,33 @@ const FN = {
   charactersListByBookIds: "characters:listByBookIds",
 } as const;
 
+type ConvexClient = NonNullable<ReturnType<typeof getConvexClient>>;
+type ConvexMutationReference = Parameters<ConvexClient["mutation"]>[0];
+type ConvexQueryReference = Parameters<ConvexClient["query"]>[0];
+type ConvexRecord = Record<string, unknown>;
+
+function mutationRef(name: (typeof FN)[keyof typeof FN]): ConvexMutationReference {
+  return name as unknown as ConvexMutationReference;
+}
+
+function queryRef(name: (typeof FN)[keyof typeof FN]): ConvexQueryReference {
+  return name as unknown as ConvexQueryReference;
+}
+
+function stringField(record: ConvexRecord, field: string): string {
+  return String(record[field]);
+}
+
+function numberField(record: ConvexRecord, field: string): number {
+  const value = record[field];
+  return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function stringArrayField(record: ConvexRecord, field: string): string[] {
+  const value = record[field];
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
 function getConvexClient() {
   const deploymentUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!deploymentUrl) return null;
@@ -109,7 +136,7 @@ export async function persistPreparedUpload(
     };
   }
 
-  const bookId = await client.mutation(FN.booksCreate as any, {
+  const bookId = await client.mutation(mutationRef(FN.booksCreate), {
     userId,
     title: input.title,
     author: input.author ?? "Unknown",
@@ -122,7 +149,7 @@ export async function persistPreparedUpload(
     characterCount: 0,
   });
 
-  const jobId = await client.mutation(FN.jobsCreate as any, {
+  const jobId = await client.mutation(mutationRef(FN.jobsCreate), {
     entityType: "book",
     entityId: bookId,
     jobType: "discover_characters",
@@ -142,7 +169,7 @@ export async function persistPreparedUpload(
   const discovery = await kickoffDiscoveryWorkflow(kickoff);
 
   if (discovery.mode === "trigger") {
-    await client.mutation(FN.discoveryMarkTriggered as any, {
+    await client.mutation(mutationRef(FN.discoveryMarkTriggered), {
       bookId,
       jobId,
       triggerRunId: discovery.runId,
@@ -167,18 +194,18 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
     };
   }
 
-  const books = (await client.query(FN.booksListByUser as any, { userId })) as Array<Record<string, any>>;
+  const books = (await client.query(queryRef(FN.booksListByUser), { userId })) as ConvexRecord[];
 
   const jobs = books.length
-    ? ((await client.query(FN.jobsListByEntityIds as any, {
-        entityIds: books.map((book) => book._id),
-      })) as Array<Record<string, any>>)
+    ? ((await client.query(queryRef(FN.jobsListByEntityIds), {
+        entityIds: books.map((book) => stringField(book, "_id")),
+      })) as ConvexRecord[])
     : [];
 
   const characters = books.length
-    ? ((await client.query(FN.charactersListByBookIds as any, {
-        bookIds: books.map((book) => book._id),
-      })) as Array<Record<string, any>>)
+    ? ((await client.query(queryRef(FN.charactersListByBookIds), {
+        bookIds: books.map((book) => stringField(book, "_id")),
+      })) as ConvexRecord[])
     : [];
 
   return {
@@ -186,22 +213,22 @@ export async function listBooksByUser(userId: string): Promise<ListBooksResult> 
     books: buildBookStateSummaries({
       books: books as BookStateInput[],
       jobs: jobs.map((job) => ({
-        _id: String(job._id),
-        _creationTime: job._creationTime,
-        entityId: String(job.entityId),
-        jobType: job.jobType,
-        status: job.status,
-        step: job.step,
-        progressCurrent: job.progressCurrent,
-        progressTotal: job.progressTotal,
+        _id: stringField(job, "_id"),
+        _creationTime: numberField(job, "_creationTime"),
+        entityId: stringField(job, "entityId"),
+        jobType: stringField(job, "jobType"),
+        status: stringField(job, "status"),
+        step: stringField(job, "step"),
+        progressCurrent: numberField(job, "progressCurrent"),
+        progressTotal: numberField(job, "progressTotal"),
       })) as WorkflowJobStateInput[],
       characters: characters.map((character) => ({
-        _id: String(character._id),
-        bookId: String(character.bookId),
-        name: character.name,
-        description: character.description,
-        aliases: character.aliases,
-        sampleLineCount: character.sampleLineCount,
+        _id: stringField(character, "_id"),
+        bookId: stringField(character, "bookId"),
+        name: stringField(character, "name"),
+        description: stringField(character, "description"),
+        aliases: stringArrayField(character, "aliases"),
+        sampleLineCount: numberField(character, "sampleLineCount"),
       })) as CharacterStateInput[],
     }),
   };
