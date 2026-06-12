@@ -22,6 +22,8 @@ describe("buildAuraLifecycleUpdate", () => {
   it("builds started, completed, and failed updates", () => {
     expect(buildAuraLifecycleUpdate({ phase: "started", triggerRunId: "run_1" })).toEqual({ auraStatus: "generating_script", jobStatus: "running", step: "generating_script", progressCurrent: 1, progressTotal: 2, triggerRunId: "run_1" });
     expect(buildAuraLifecycleUpdate({ phase: "completed", triggerRunId: "run_1" })).toEqual({ auraStatus: "script_ready", jobStatus: "completed", step: "script_ready", progressCurrent: 2, progressTotal: 2, triggerRunId: "run_1" });
+    expect(buildAuraLifecycleUpdate({ phase: "audio_started", triggerRunId: "run_1" })).toEqual({ auraStatus: "generating_audio", jobStatus: "running", step: "generating_audio", progressCurrent: 1, progressTotal: 2, triggerRunId: "run_1" });
+    expect(buildAuraLifecycleUpdate({ phase: "audio_completed", triggerRunId: "run_1" })).toEqual({ auraStatus: "ready", jobStatus: "completed", step: "audio_ready", progressCurrent: 2, progressTotal: 2, triggerRunId: "run_1" });
     expect(buildAuraLifecycleUpdate({ phase: "failed", triggerRunId: "run_1", errorMessage: "boom" })).toMatchObject({ auraStatus: "failed", jobStatus: "failed", errorMessage: "boom" });
   });
 });

@@ -14,7 +14,7 @@ import {
   type Voice,
   type WorkflowJobStateInput,
 } from "@libra/shared";
-import { createDiscoverCharactersPayload, discoverCharactersWorkflowId, createGenerateAuraPayload, generateAuraWorkflowId } from "@libra/trigger";
+import { createDiscoverCharactersPayload, discoverCharactersWorkflowId, createGenerateAuraPayload, generateAuraWorkflowId, generateAudioWorkflowId } from "@libra/trigger";
 import { configure, tasks } from "@trigger.dev/sdk/v3";
 
 export type PersistPreparedUploadInput = {
@@ -36,6 +36,10 @@ export type DiscoveryKickoffResult =
   | { mode: "deferred"; reason: string };
 
 export type GenerateAuraResult =
+  | { mode: "trigger"; auraId: string; jobId: string; runId: string }
+  | { mode: "deferred"; auraId?: string; jobId?: string; reason: string };
+
+export type GenerateAudioResult =
   | { mode: "trigger"; auraId: string; jobId: string; runId: string }
   | { mode: "deferred"; auraId?: string; jobId?: string; reason: string };
 
@@ -501,4 +505,54 @@ export async function generateAuraForBook(userId: string, bookId: string): Promi
   }
 
   return { mode: "deferred", auraId: String(auraId), jobId: String(jobId), reason: generation.reason };
+}
+
+
+
+export async function generateAudioForBook(userId: string, bookId: string): Promise<GenerateAudioResult> {
+  const client = getConvexClient();
+  if (!client) {
+    return { mode: "deferred", reason: "Set NEXT_PUBLIC_CONVEX_URL and deploy Convex functions to generate audio." };
+  }
+
+  const aura = (await client.query(queryRef(FN.aurasGetByBookId), { bookId })) as ConvexRecord | null;
+  if (!aura) throw new Error("Generate an aura script before generating audio.");
+
+  const auraId = stringField(aura, "_id");
+  const scriptLines = (await client.query(queryRef(FN.scriptLinesListByAuraId), { auraId })) as ConvexRecord[];
+  if (scriptLines.length === 0) throw new Error("Generate script lines before generating audio.");
+
+  const jobId = await client.mutation(mutationRef(FN.jobsCreate), {
+    entityType: "aura",
+    entityId: auraId,
+    jobType: "generate_audio",
+    status: "queued",
+    progressCurrent: 0,
+    progressTotal: scriptLines.length,
+    step: "queued_for_audio_generation",
+  });
+
+  const triggerConfig = getTriggerConfig();
+  if (!triggerConfig) {
+    return { mode: "deferred", auraId, jobId: String(jobId), reason: "Set TRIGGER_SECRET_KEY to kick off the real Gemini audio workflow." };
+  }
+
+  configure({
+    accessToken: triggerConfig.accessToken,
+    ...(triggerConfig.baseURL ? { baseURL: triggerConfig.baseURL } : {}),
+  });
+
+  const payload = { bookId, auraId, jobId: String(jobId), userId };
+  const handle = await tasks.trigger(generateAudioWorkflowId, payload, {
+    idempotencyKey: `generate-audio:${String(jobId)}`,
+    tags: [`book:${bookId}`, `aura:${auraId}`, `job:${String(jobId)}`],
+  });
+
+  await client.mutation(mutationRef(FN.auraGenerationMarkTriggered), {
+    auraId,
+    jobId,
+    triggerRunId: handle.id,
+  });
+
+  return { mode: "trigger", auraId, jobId: String(jobId), runId: handle.id };
 }

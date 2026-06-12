@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { PDFParse } from "pdf-parse";
 
 function getRequiredEnv(name: string): string {
@@ -79,4 +79,29 @@ export async function readTextSourceFromR2(objectKey: string): Promise<string> {
 
   const bytes = Buffer.from(await response.Body.transformToByteArray());
   return await extractTextFromSourceBytes(objectKey, bytes);
+}
+
+
+
+export async function writeAudioToR2(input: {
+  key: string;
+  bytes: Uint8Array;
+  contentType: string;
+}): Promise<string> {
+  const bucket = getRequiredEnv("R2_BUCKET");
+  await createR2Client().send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: input.key,
+      Body: input.bytes,
+      ContentType: input.contentType,
+    }),
+  );
+
+  const publicBaseUrl = process.env.R2_PUBLIC_BASE_URL;
+  if (!publicBaseUrl) {
+    throw new Error("Missing R2_PUBLIC_BASE_URL for playable audio URLs.");
+  }
+
+  return `${publicBaseUrl.replace(/\/$/, "")}/${input.key}`;
 }

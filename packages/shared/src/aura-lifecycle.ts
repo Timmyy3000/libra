@@ -1,6 +1,6 @@
 import type { AuraStatus, WorkflowJobStatus } from "./schemas";
 
-export type AuraLifecyclePhase = "started" | "completed" | "failed";
+export type AuraLifecyclePhase = "started" | "completed" | "audio_started" | "audio_completed" | "failed";
 
 export type AuraLifecycleUpdate = {
   auraStatus: AuraStatus;
@@ -39,10 +39,32 @@ export function buildAuraLifecycleUpdate(input: {
     };
   }
 
+  if (input.phase === "audio_started") {
+    return {
+      auraStatus: "generating_audio",
+      jobStatus: "running",
+      step: "generating_audio",
+      progressCurrent: 1,
+      progressTotal: 2,
+      ...(input.triggerRunId ? { triggerRunId: input.triggerRunId } : {}),
+    };
+  }
+
+  if (input.phase === "audio_completed") {
+    return {
+      auraStatus: "ready",
+      jobStatus: "completed",
+      step: "audio_ready",
+      progressCurrent: 2,
+      progressTotal: 2,
+      ...(input.triggerRunId ? { triggerRunId: input.triggerRunId } : {}),
+    };
+  }
+
   return {
     auraStatus: "failed",
     jobStatus: "failed",
-    step: "script_generation_failed",
+    step: "aura_generation_failed",
     progressCurrent: 2,
     progressTotal: 2,
     ...(input.triggerRunId ? { triggerRunId: input.triggerRunId } : {}),
